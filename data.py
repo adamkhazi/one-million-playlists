@@ -14,16 +14,13 @@ class Data(object):
                 playlistData.append(data)
         return playlistData
 
-    def loadTracks(self, nr_tracks=1000):
+    def loadTracks(self, nr_files=1):
         dataFileNames = os.listdir(self.DATASET_DIR)
         trackData = []
-        for currFile in dataFileNames:
-            with open(self.DATASET_DIR + currFile) as f:
+        for i in range(nr_files):
+            with open(self.DATASET_DIR + dataFileNames[i]) as f:
                 data = json.load(f)
                 for playlist in data['playlists']:
                     for track in playlist['tracks']:
                         trackData.append(track)
-
-                        if len(trackData) >= nr_tracks:
-                            return trackData
         return trackData
