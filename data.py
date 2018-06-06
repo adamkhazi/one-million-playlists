@@ -48,7 +48,7 @@ class Data(object):
                 data = json.load(f)
                 trackRows = [track for playlist in data['playlists'] for track in playlist['tracks']]
                 trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
-                
+
         trackDataDF['duration_min'] = trackDataDF.apply (lambda row: (row['duration_ms']/1000)/60, axis=1)
         return trackDataDF
 
