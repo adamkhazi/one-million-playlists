@@ -36,6 +36,22 @@ class Data(object):
                         trackData.append(track)
         return trackData
 
+    def loadFormattedTracks(self, nr_files=1):
+        dataDir = self.getDatasetPath()
+        dataFileNames = os.listdir(dataDir)
+
+        trackDataDF = pd.DataFrame(columns=['album_name', 'album_uri', 'artist_name', 
+        'artist_uri', 'duration_ms', 'pos', 'track_name', 'track_uri'])
+
+        for i in tqdm(range(nr_files)):
+            with open(dataDir + dataFileNames[i]) as f:
+                data = json.load(f)
+                trackRows = [track for playlist in data['playlists'] for track in playlist['tracks']]
+                trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
+                
+        trackDataDF['duration_min'] = trackDataDF.apply (lambda row: (row['duration_ms']/1000)/60, axis=1)
+        return trackDataDF
+
     def loadFormattedPlaylists(self, nr_files=1):
         dataDir = self.getDatasetPath()
         dataFileNames = os.listdir(dataDir)
@@ -70,7 +86,6 @@ class Data(object):
                     playListSetRows.append(row)
 
                 playlistDataDF = playlistDataDF.append(playListSetRows, ignore_index=True)
-                print('rows: ', playlistDataDF.shape[0])
         return playlistDataDF
 
     def savePlaylistDf(self, df):
