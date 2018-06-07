@@ -32,7 +32,7 @@ class Data(object):
         dataDir = self.getDatasetPath()
         dataFileNames = os.listdir(dataDir)
         trackData = []
-        for i in range(nr_files):
+        for i in tqdm(range(nr_files)):
             with open(dataDir + dataFileNames[i]) as f:
                 data = json.load(f)
                 for playlist in data['playlists']:
@@ -47,19 +47,11 @@ class Data(object):
         trackDataDF = pd.DataFrame(columns=['album_name', 'album_uri', 'artist_name', 
         'artist_uri', 'duration_ms', 'pos', 'track_name', 'track_uri'])
         
-        seen = dict()
-        trackRows = []
         for i in tqdm(range(nr_files)):
             with open(dataDir + dataFileNames[i]) as f:
                 data = json.load(f)
-                for playlist in data['playlists']:
-                    for t in playlist['tracks']:
-                        tup = tuple(t.items())
-                        if tup not in seen:
-                            seen[tup] = True
-                            trackRows.append(t)
-            
-        trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
+                trackRows = [t for playlist in data['playlists'] for t in playlist['tracks']]
+                trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
 
         trackDataDF['duration_min'] = trackDataDF.apply (lambda row: (row['duration_ms']/1000)/60, axis=1)
         return trackDataDF
