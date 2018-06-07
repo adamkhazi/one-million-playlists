@@ -47,13 +47,21 @@ class Data(object):
         trackDataDF = pd.DataFrame(columns=['album_name', 'album_uri', 'artist_name', 
         'artist_uri', 'duration_ms', 'pos', 'track_name', 'track_uri'])
         
+        trackRows = []
         for i in tqdm(range(nr_files)):
             with open(dataDir + dataFileNames[i]) as f:
                 data = json.load(f)
-                trackRows = [t for playlist in data['playlists'] for t in playlist['tracks']]
-                trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
+                trackRows.extend([t for playlist in data['playlists'] for t in playlist['tracks']])
 
-        trackDataDF['duration_min'] = trackDataDF.apply (lambda row: (row['duration_ms']/1000)/60, axis=1)
+                if i % 250 == 0:
+                    trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
+                    trackRows = None
+                    trackRows = []
+
+        trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
+        trackRows = None
+
+        #trackDataDF['duration_min'] = trackDataDF.apply (lambda row: (row['duration_ms']/1000)/60, axis=1)
         return trackDataDF
 
     def loadFormattedPlaylists(self, nr_files=1):
