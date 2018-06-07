@@ -8,11 +8,14 @@ class Data(object):
     def __init__(self):
         self.__config = dict(line.strip().split('=') for line in open("../project.config"))
 
+    def getTrackDfPath(self):
+        return self.__config['ONE_MILLION_PLAYLISTS_TRACKS_FORMATTED']
+
     def getPlaylistDfPath(self):
         return self.__config['ONE_MILLION_PLAYLISTS_FORMATTED']
 
     def getDatasetPath(self):
-        return self.__config['ONE_MILLION_PLAYLISTS']
+        return self.__config['ONE_MILLION_PLAYLISTS_DATASET']
 
     # 1000 playlists per file
     def load(self, nr_files=1):
@@ -95,4 +98,12 @@ class Data(object):
     
     def loadPlaylistDf(self):
         path = self.getPlaylistDfPath()
+        return pd.read_pickle(path)
+
+    def saveTrackDf(self, df):
+        path = self.getTrackDfPath()
+        df.to_pickle(path)
+    
+    def loadTrackDf(self):
+        path = self.getTrackDfPath()
         return pd.read_pickle(path)

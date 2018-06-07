@@ -13,4 +13,15 @@ class API:
 
     def getTrackInfo(self, trackURI):
         track = self.__sp.track(trackURI)
-        print(track)
+        return track
+
+    def getAlbumInfo(self, albumURI):
+        album = self.__sp.album(albumURI)
+        return album
+
+    def getArtistInfo(self, artistURI):
+        artist = self.__sp.artist(artistURI)
+        return artist
+
+    def augmentTracksTable(self, trackDataDF):
+        pass
