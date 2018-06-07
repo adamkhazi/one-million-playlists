@@ -5,13 +5,14 @@ import pandas as pd
 from tqdm import tqdm
 
 class Data(object):
+    def __init__(self):
+        self.__config = dict(line.strip().split('=') for line in open("../project.config"))
+
     def getPlaylistDfPath(self):
-        paths = open("../dataset_paths.config").read().split('\n')
-        return paths[1]
+        return self.__config['ONE_MILLION_PLAYLISTS_FORMATTED']
 
     def getDatasetPath(self):
-        paths = open("../dataset_paths.config").read().split('\n')
-        return paths[0]
+        return self.__config['ONE_MILLION_PLAYLISTS']
 
     # 1000 playlists per file
     def load(self, nr_files=1):
