@@ -48,21 +48,18 @@ class Data(object):
         'artist_uri', 'duration_ms', 'pos', 'track_name', 'track_uri'])
         
         seen = dict()
+        trackRows = []
         for i in tqdm(range(nr_files)):
-            trackRows = []
             with open(dataDir + dataFileNames[i]) as f:
                 data = json.load(f)
-                currTracks = []
                 for playlist in data['playlists']:
-                    currTracks.extend(playlist['tracks'])
-
-                for t in currTracks:
-                    tup = tuple(t.items())
-                    if tup not in seen:
-                        seen[tup] = True
-                        trackRows.append(t)
+                    for t in playlist['tracks']:
+                        tup = tuple(t.items())
+                        if tup not in seen:
+                            seen[tup] = True
+                            trackRows.append(t)
             
-            trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
+        trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
 
         trackDataDF['duration_min'] = trackDataDF.apply (lambda row: (row['duration_ms']/1000)/60, axis=1)
         return trackDataDF
