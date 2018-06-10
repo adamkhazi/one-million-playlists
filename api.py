@@ -29,5 +29,22 @@ class API:
         artist = self.__sp.artist(artistURI)
         return artist
 
-    def augmentTracksTable(self, trackDataDF):
-        pass
+    def getTrackAnalysis(self, trackURI):
+        if not hasattr(self, '__trackAnalysisCache'):
+            self.__trackAnalysisCache = dict()
+        
+        if trackURI not in self.__trackAnalysisCache:
+            track = self.__sp.audio_analysis(trackURI)
+            self.__trackAnalysisCache[trackURI] = track
+
+        return self.__trackAnalysisCache[trackURI]
+
+    def getTrackFeatures(self, trackURI):
+        if not hasattr(self, '__trackFeaturesCache'):
+            self.__trackFeaturesCache = dict()
+        
+        if trackURI not in self.__trackFeaturesCache:
+            track = self.__sp.audio_features(trackURI)
+            self.__trackFeaturesCache[trackURI] = track
+
+        return self.__trackFeaturesCache[trackURI]
