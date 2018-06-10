@@ -12,8 +12,14 @@ class API:
         self.__sp.trace_out = False
 
     def getTrackInfo(self, trackURI):
-        track = self.__sp.track(trackURI)
-        return track
+        if not hasattr(self, '__trackCache'):
+            self.__trackCache = dict()
+        
+        if trackURI not in self.__trackCache:
+            track = self.__sp.track(trackURI)
+            self.__trackCache[trackURI] = track
+
+        return self.__trackCache[trackURI]
 
     def getAlbumInfo(self, albumURI):
         album = self.__sp.album(albumURI)
