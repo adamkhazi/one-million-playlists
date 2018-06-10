@@ -4,6 +4,10 @@ from datetime import datetime
 import pandas as pd
 from tqdm import tqdm
 
+from api import API
+
+import pdb
+
 class Data(object):
     def __init__(self):
         self.__config = dict(line.strip().split('=') for line in open("../project.config"))
@@ -53,7 +57,7 @@ class Data(object):
                 data = json.load(f)
                 trackRows.extend([t for playlist in data['playlists'] for t in playlist['tracks']])
 
-                if i % 250 == 0:
+                if i % 250 == 0 and i > 0:
                     trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
                     trackRows = None
                     trackRows = []
@@ -115,3 +119,12 @@ class Data(object):
     def loadTrackDf(self):
         path = self.getTrackDfPath()
         return pd.read_pickle(path)
+
+    def addTrackAPIFields(self, trackDf):
+        spotifyAPI = API()
+
+        def apiFields(uri):
+            return spotifyAPI.getTrackInfo(uri)['popularity']
+
+        trackDf['popularity'] = trackDf['track_uri'].apply(apiFields)
+        return trackDf
