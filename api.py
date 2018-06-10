@@ -44,7 +44,7 @@ class API:
             self.__trackFeaturesCache = dict()
         
         if trackURI not in self.__trackFeaturesCache:
-            track = self.__sp.audio_features(trackURI)
+            track = self.__sp.audio_features(trackURI)[0]
             self.__trackFeaturesCache[trackURI] = track
 
         return self.__trackFeaturesCache[trackURI]

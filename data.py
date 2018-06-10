@@ -124,7 +124,13 @@ class Data(object):
         spotifyAPI = API()
 
         def apiFields(uri):
-            return spotifyAPI.getTrackInfo(uri)['popularity']
+            features = spotifyAPI.getTrackFeatures(uri)
+            return pd.Series([spotifyAPI.getTrackInfo(uri)['popularity'], features['danceability'], features['energy'],
+                features['key'], features['loudness'], features['mode'], features['speechiness'], features['acousticness'],
+                    features['instrumentalness'], features['liveness'], features['valence'], features['tempo']])
 
-        trackDf['popularity'] = trackDf['track_uri'].apply(apiFields)
+        trackDf[['popularity', 'danceability', 'energy',
+                'key', 'loudness', 'mode', 'speechiness', 
+                'acousticness', 'instrumentalness','liveness',
+                'valence','tempo']] = trackDf['track_uri'].apply(apiFields)
         return trackDf
