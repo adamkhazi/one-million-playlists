@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 import pandas as pd
 from tqdm import tqdm
+from pandas.io.json import json_normalize
 
 from api import API
 
@@ -65,7 +66,6 @@ class Data(object):
         trackDataDF = trackDataDF.append(trackRows, ignore_index=True)
         trackRows = None
 
-        #trackDataDF['duration_min'] = trackDataDF.apply (lambda row: (row['duration_ms']/1000)/60, axis=1)
         return trackDataDF
 
     def loadFormattedPlaylists(self, nr_files=1):
@@ -104,6 +104,15 @@ class Data(object):
 
                 playlistDataDF = playlistDataDF.append(playListSetRows, ignore_index=True)
         return playlistDataDF
+
+    def loadFormattedPlaylistsAndTracks(self, nr_files=1):
+        dataDir = self.getDatasetPath()
+        dataFileNames = os.listdir(dataDir)
+
+        #for i in tqdm(range(nr_files)):
+        return pd.io.json.json_normalize(json.load(open(dataDir + dataFileNames[0]))['playlists'], 'tracks', ['collaborative', 'description', 'duration_ms', 'modified_at', 'name', 'num_albums', 
+        'num_artists', 'num_edits', 'num_followers', 'num_tracks', 'pid'], errors='ignore', meta_prefix='playlist.')
+
 
     def savePlaylistDf(self, df):
         path = self.getPlaylistDfPath()
