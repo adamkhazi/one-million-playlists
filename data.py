@@ -93,6 +93,7 @@ class Data(object):
                     row['modified_at_month'] = int(datetime.fromtimestamp(playlistSet["playlists"][0]['modified_at']).strftime('%m'))
                     row['modified_at_year'] = int(datetime.fromtimestamp(playlistSet["playlists"][0]['modified_at']).strftime('%Y'))
                     row['modified_at_day'] = int(datetime.fromtimestamp(playlistSet["playlists"][0]['modified_at']).strftime('%d'))
+                    row['modified_at_week_day'] = datetime.fromtimestamp(playlistSet["playlists"][0]['modified_at']).strftime('%A')
                     row['duration_ms'] = playlistSet["playlists"][0]['duration_ms']
                     row['duration_sec'] = playlistSet["playlists"][0]['duration_ms'] / 1000
                     row['duration_min'] = (playlistSet["playlists"][0]['duration_ms'] / 1000)/60
