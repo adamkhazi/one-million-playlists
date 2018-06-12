@@ -14,11 +14,13 @@ class API:
 
     def getTrackInfo(self, trackURI):
         if not hasattr(self, '__trackCache'):
-            self.__trackCache = dict()
+            self.__trackCache = shelve.open(self.__config['TRACK_CACHE'])
         
         if trackURI not in self.__trackCache:
             track = self.__sp.track(trackURI)
             self.__trackCache[trackURI] = track
+
+        print("track cache size:", len(self.__trackCache))
 
         return self.__trackCache[trackURI]
 
@@ -51,6 +53,9 @@ class API:
         print("track feature cache size:", len(self.__trackFeaturesCache))
 
         return self.__trackFeaturesCache[trackURI]
+    
+    def closeTrackCache(self):
+        self.__trackCache.close()
 
     def closeTrackFeatureCache(self):
         self.__trackFeaturesCache.close()

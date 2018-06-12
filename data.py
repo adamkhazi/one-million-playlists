@@ -148,5 +148,6 @@ class Data(object):
                 'acousticness', 'instrumentalness','liveness',
                 'valence','tempo']] = trackDf['track_uri'].progress_apply(apiFields)
 
+        spotifyAPI.closeTrackCache()
         spotifyAPI.closeTrackFeatureCache()
         return trackDf
