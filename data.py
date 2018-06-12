@@ -109,9 +109,12 @@ class Data(object):
         dataDir = self.getDatasetPath()
         dataFileNames = os.listdir(dataDir)
 
-        #for i in tqdm(range(nr_files)):
-        return pd.io.json.json_normalize(json.load(open(dataDir + dataFileNames[0]))['playlists'], 'tracks', ['collaborative', 'description', 'duration_ms', 'modified_at', 'name', 'num_albums', 
-        'num_artists', 'num_edits', 'num_followers', 'num_tracks', 'pid'], errors='ignore', meta_prefix='playlist.')
+        sets = []
+        for i in tqdm(range(nr_files)):
+            sets.append(pd.io.json.json_normalize(json.load(open(dataDir + dataFileNames[i]))['playlists'], 'tracks', ['collaborative', 'description', 'duration_ms',
+                'modified_at', 'name', 'num_albums', 'num_artists', 'num_edits', 'num_followers', 
+                    'num_tracks', 'pid'], errors='ignore', meta_prefix='playlist.'))
+        return pd.concat(sets)
 
 
     def savePlaylistDf(self, df):
@@ -132,6 +135,7 @@ class Data(object):
 
     def addTrackAPIFields(self, trackDf):
         spotifyAPI = API()
+        tqdm.pandas()
 
         def apiFields(uri):
             features = spotifyAPI.getTrackFeatures(uri)
@@ -142,5 +146,7 @@ class Data(object):
         trackDf[['popularity', 'danceability', 'energy',
                 'key', 'loudness', 'mode', 'speechiness', 
                 'acousticness', 'instrumentalness','liveness',
-                'valence','tempo']] = trackDf['track_uri'].apply(apiFields)
+                'valence','tempo']] = trackDf['track_uri'].progress_apply(apiFields)
+
+        spotifyAPI.closeTrackFeatureCache()
         return trackDf

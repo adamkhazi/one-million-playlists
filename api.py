@@ -1,5 +1,6 @@
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+import shelve
 
 class API:
     def __init__(self):
@@ -41,10 +42,15 @@ class API:
 
     def getTrackFeatures(self, trackURI):
         if not hasattr(self, '__trackFeaturesCache'):
-            self.__trackFeaturesCache = dict()
+            self.__trackFeaturesCache = shelve.open(self.__config['TRACK_FEATURES_CACHE'])
         
         if trackURI not in self.__trackFeaturesCache:
             track = self.__sp.audio_features(trackURI)[0]
             self.__trackFeaturesCache[trackURI] = track
+        
+        print("track feature cache size:", len(self.__trackFeaturesCache))
 
         return self.__trackFeaturesCache[trackURI]
+
+    def closeTrackFeatureCache(self):
+        self.__trackFeaturesCache.close()

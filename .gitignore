@@ -105,3 +105,10 @@ venv.bak/
 
 # local config file
 project.config
+
+# local caches and temp dataframes
+*.pkl
+*.db
+*.db.bak
+*.db.dat
+*.db.dir
