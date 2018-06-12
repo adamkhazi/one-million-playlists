@@ -20,8 +20,6 @@ class API:
             track = self.__sp.track(trackURI)
             self.__trackCache[trackURI] = track
 
-        print("track cache size:", len(self.__trackCache))
-
         return self.__trackCache[trackURI]
 
     def getAlbumInfo(self, albumURI):
@@ -50,8 +48,6 @@ class API:
             track = self.__sp.audio_features(trackURI)[0]
             self.__trackFeaturesCache[trackURI] = track
         
-        print("track feature cache size:", len(self.__trackFeaturesCache))
-
         return self.__trackFeaturesCache[trackURI]
     
     def closeTrackCache(self):

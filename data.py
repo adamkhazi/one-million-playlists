@@ -4,6 +4,9 @@ from datetime import datetime
 import pandas as pd
 from tqdm import tqdm
 from pandas.io.json import json_normalize
+from swifter import swiftapply
+import dask.dataframe as dd
+from dask.multiprocessing import get
 
 from api import API
 
@@ -138,6 +141,7 @@ class Data(object):
         tqdm.pandas()
 
         def apiFields(uri):
+
             features = spotifyAPI.getTrackFeatures(uri)
             return pd.Series([spotifyAPI.getTrackInfo(uri)['popularity'], features['danceability'], features['energy'],
                 features['key'], features['loudness'], features['mode'], features['speechiness'], features['acousticness'],
