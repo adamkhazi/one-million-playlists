@@ -1,6 +1,5 @@
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
-import shelve
 
 class API:
     def __init__(self):
@@ -13,14 +12,8 @@ class API:
         self.__sp.trace_out = False
 
     def getTrackInfo(self, trackURI):
-        if not hasattr(self, '__trackCache'):
-            self.__trackCache = shelve.open(self.__config['TRACK_CACHE'])
-        
-        if trackURI not in self.__trackCache:
-            track = self.__sp.track(trackURI)
-            self.__trackCache[trackURI] = track
-
-        return self.__trackCache[trackURI]
+        track = self.__sp.track(trackURI)
+        return track
 
     def getAlbumInfo(self, albumURI):
         album = self.__sp.album(albumURI)
@@ -31,27 +24,9 @@ class API:
         return artist
 
     def getTrackAnalysis(self, trackURI):
-        if not hasattr(self, '__trackAnalysisCache'):
-            self.__trackAnalysisCache = dict()
-        
-        if trackURI not in self.__trackAnalysisCache:
-            track = self.__sp.audio_analysis(trackURI)
-            self.__trackAnalysisCache[trackURI] = track
-
-        return self.__trackAnalysisCache[trackURI]
+        track = self.__sp.audio_analysis(trackURI)
+        return track
 
     def getTrackFeatures(self, trackURI):
-        if not hasattr(self, '__trackFeaturesCache'):
-            self.__trackFeaturesCache = shelve.open(self.__config['TRACK_FEATURES_CACHE'])
-        
-        if trackURI not in self.__trackFeaturesCache:
-            track = self.__sp.audio_features(trackURI)[0]
-            self.__trackFeaturesCache[trackURI] = track
-        
-        return self.__trackFeaturesCache[trackURI]
-    
-    def closeTrackCache(self):
-        self.__trackCache.close()
-
-    def closeTrackFeatureCache(self):
-        self.__trackFeaturesCache.close()
+        track = self.__sp.audio_features(trackURI)[0]        
+        return track

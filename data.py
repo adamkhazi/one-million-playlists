@@ -4,13 +4,16 @@ from datetime import datetime
 import pandas as pd
 from tqdm import tqdm
 from pandas.io.json import json_normalize
-from swifter import swiftapply
-import dask.dataframe as dd
-from dask.multiprocessing import get
+from pymongo import MongoClient
+import json
+from joblib import Parallel, delayed
+import time
 
 from api import API
-
 import pdb
+
+def unwrap_self(arg, **kwarg):
+    return Data.updateTrackFeatureData(*arg, **kwarg)
 
 class Data(object):
     def __init__(self):
@@ -119,6 +122,70 @@ class Data(object):
                     'num_tracks', 'pid'], errors='ignore', meta_prefix='playlist.'))
         return pd.concat(sets)
 
+    def getDB(self):
+        client = MongoClient(self.__config['MONGO_DB_ADDR'], int(self.__config['MONGO_DB_PORT']))
+        return client, client[self.__config['MONGO_DB_NAME']]
+
+    def loadFormattedPlaylistFilesDB(self):
+        dataDir = self.getDatasetPath()
+        dataFileNames = os.listdir(dataDir)
+        client, db = self.getDB()
+
+        for i in tqdm(range(len(dataFileNames))):
+            playlistDf = pd.io.json.json_normalize(json.load(open(dataDir + dataFileNames[i]))['playlists'], 'tracks', ['collaborative', 'description', 'duration_ms',
+                'modified_at', 'name', 'num_albums', 'num_artists', 'num_edits', 'num_followers', 
+                    'num_tracks', 'pid'], errors='ignore', meta_prefix='playlist_')
+
+            playlistDf = json.loads(playlistDf.T.to_json()).values()
+            db.tracks.insert(playlistDf)
+
+    def clearTracksDB(self):
+        c, db =  self.getDB()
+        db.tracks.remove({})
+
+    def fillTrackFeaturesDB(self):
+        client, db = self.getDB()
+        uniqTracks = db.uniqueTrackURIs.find({})
+        uniqTrackURIs = [u['track_uri'] for u in uniqTracks]
+        client.close()
+
+        Parallel(n_jobs=-1)(delayed(unwrap_self)(uri) for uri in zip([self]*len(uniqTrackURIs), uniqTrackURIs))
+
+    def updateTrackFeatureData(self, trackURI):
+        c, db = self.getDB()
+
+        while True:
+            try:
+                if db.tracksFeatureCache.find( {'uri': trackURI} ).count() == 0:
+                    a = API()
+                    while True:
+                        try:
+                            features = a.getTrackFeatures(trackURI)
+                            if features:
+                                inID = db.tracksFeatureCache.insert_one(features).inserted_id
+                            break
+                            
+                        except ConnectionError:
+                            c.close()
+                            time.sleep(5)
+                            c, db = self.getDB()
+                    break
+                else:
+                    break
+
+            except:
+                c.close()
+                c, db = self.getDB()
+
+
+    def insertDistinctURIs(self):
+        c, db = self.getDB()
+        uniqTracks = db.tracks.aggregate([{'$group': {"_id": {"track_uri":'$track_uri'}}}], allowDiskUse=True)
+        uniqTrackURIs = [u['_id']['track_uri'] for u in uniqTracks]
+
+        for u in uniqTrackURIs:
+            db.uniqueTrackURIs.insert_one({"track_uri": u}).inserted_id
+        
 
     def savePlaylistDf(self, df):
         path = self.getPlaylistDfPath()
@@ -152,6 +219,4 @@ class Data(object):
                 'acousticness', 'instrumentalness','liveness',
                 'valence','tempo']] = trackDf['track_uri'].progress_apply(apiFields)
 
-        spotifyAPI.closeTrackCache()
-        spotifyAPI.closeTrackFeatureCache()
         return trackDf
