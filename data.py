@@ -163,10 +163,10 @@ class Data(object):
         uniqTrackURIs = [k for k,v in uniqTrackURIs.items() if v]
         uniqTrackURIs = list(chunked(uniqTrackURIs, 50))
 
-        #for i in tqdm(uniqTrackURIs):
-        #    self.updateTrackFeatureData(i)
+        for i in tqdm(uniqTrackURIs):
+            self.updateTrackFeatureData(i)
 
-        Parallel(n_jobs=-1)(delayed(self.updateTrackFeatureData)(uri) for uri in zip([self]*len(uniqTrackURIs), uniqTrackURIs))
+        #Parallel(n_jobs=-1, verbose=100)(delayed(self.updateTrackFeatureData)(uri) for uri in zip([self]*len(uniqTrackURIs), uniqTrackURIs))
 
     def updateTrackFeatureData(self, trackURI):
         c, db = self.getDB()
@@ -176,6 +176,7 @@ class Data(object):
                 a = API()
                 while True:
                     try:
+                        pdb.set_trace()
                         features = a.getTrackFeatures(trackURI)
                         res = []
                         for f in features:
@@ -184,15 +185,15 @@ class Data(object):
                         inID = db.tracksFeatureCache.insert_many(res).inserted_ids
                         break  
                     except ConnectionError:
-                        c.close()
+                        #c.close()
                         time.sleep(60)
-                        c, db = self.getDB()
+                        #c, db = self.getDB()
                 break
             except:
-                c.close()
+                #c.close()
                 time.sleep(60)
-                c, db = self.getDB()
-        c.close()
+                #c, db = self.getDB()
+        #c.close()
 
     def insertDistinctURIs(self):
         c, db = self.getDB()

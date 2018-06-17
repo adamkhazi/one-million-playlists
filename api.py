@@ -28,5 +28,5 @@ class API:
         return track
 
     def getTrackFeatures(self, trackURI):
-        track = self.__sp.audio_features(trackURI)[0]        
+        track = self.__sp.audio_features(trackURI)        
         return track
