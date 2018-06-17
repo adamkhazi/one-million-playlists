@@ -161,6 +161,10 @@ class Data(object):
         for done in doneSoFar:
             uniqTrackURIs[done] = False
         uniqTrackURIs = [k for k,v in uniqTrackURIs.items() if v]
+        uniqTrackURIs = list(chunked(uniqTrackURIs, 50))
+
+        #for i in tqdm(uniqTrackURIs):
+        #    self.updateTrackFeatureData(i)
 
         Parallel(n_jobs=-1)(delayed(self.updateTrackFeatureData)(uri) for uri in zip([self]*len(uniqTrackURIs), uniqTrackURIs))
 
@@ -169,28 +173,26 @@ class Data(object):
 
         while True:
             try:
-                if db.tracksFeatureCache.find( {'uri': trackURI} ).count() == 0:
-                    a = API()
-                    while True:
-                        try:
-                            features = a.getTrackFeatures(trackURI)
-                            if features:
-                                inID = db.tracksFeatureCache.insert_one(features).inserted_id
-                            break
-                            
-                        except ConnectionError:
-                            c.close()
-                            time.sleep(5)
-                            c, db = self.getDB()
-                    break
-                else:
-                    print("skipping", trackURI)
-                    break
-
+                a = API()
+                while True:
+                    try:
+                        features = a.getTrackFeatures(trackURI)
+                        res = []
+                        for f in features:
+                            if f:
+                                res.append(f) 
+                        inID = db.tracksFeatureCache.insert_many(res).inserted_ids
+                        break  
+                    except ConnectionError:
+                        c.close()
+                        time.sleep(60)
+                        c, db = self.getDB()
+                break
             except:
                 c.close()
+                time.sleep(60)
                 c, db = self.getDB()
-
+        c.close()
 
     def insertDistinctURIs(self):
         c, db = self.getDB()
