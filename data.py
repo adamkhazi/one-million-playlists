@@ -7,6 +7,7 @@ from pandas.io.json import json_normalize
 from pymongo import MongoClient
 import json
 from joblib import Parallel, delayed
+from more_itertools import chunked
 import time
 
 from api import API
@@ -123,7 +124,7 @@ class Data(object):
         return pd.concat(sets)
 
     def getDB(self):
-        client = MongoClient(self.__config['MONGO_DB_ADDR'], int(self.__config['MONGO_DB_PORT']))
+        client = MongoClient(self.__config['MONGO_DB_ADDR'], int(self.__config['MONGO_DB_PORT']), connect=False)
         return client, client[self.__config['MONGO_DB_NAME']]
 
     def loadFormattedPlaylistFilesDB(self):
@@ -144,12 +145,24 @@ class Data(object):
         db.tracks.remove({})
 
     def fillTrackFeaturesDB(self):
+        #uniqTrackURIs = list(chunked(uniqTrackURIs), 50)
         client, db = self.getDB()
         uniqTracks = db.uniqueTrackURIs.find({})
-        uniqTrackURIs = [u['track_uri'] for u in uniqTracks]
+        uniqTrackURIs = {u['track_uri']: True for u in uniqTracks}
+
+        featureCache = db.tracksFeatureCache.aggregate([{'$group': {"_id": {"uri":'$uri'}}}], allowDiskUse=True)
+        doneSoFar = [u['_id']['uri'] for u in featureCache]
+        #uniqueTrackURIs = db.uniqueTrackURIs.aggregate([{"$match": { 'track_uri': {'$nin': featureCache}}}], allowDiskUse=True)
+        #uniqueTrackURIs = db.uniqueTrackURIs.find({"uri": {"$nin": featureCache}})
+        #tracksNotDownloaded = [u['track_uri'] for u in uniqueTrackURIs] 
+        #pdb.set_trace()
         client.close()
 
-        Parallel(n_jobs=-1)(delayed(unwrap_self)(uri) for uri in zip([self]*len(uniqTrackURIs), uniqTrackURIs))
+        for done in doneSoFar:
+            uniqTrackURIs[done] = False
+        uniqTrackURIs = [k for k,v in uniqTrackURIs.items() if v]
+
+        Parallel(n_jobs=-1)(delayed(self.updateTrackFeatureData)(uri) for uri in zip([self]*len(uniqTrackURIs), uniqTrackURIs))
 
     def updateTrackFeatureData(self, trackURI):
         c, db = self.getDB()
@@ -171,6 +184,7 @@ class Data(object):
                             c, db = self.getDB()
                     break
                 else:
+                    print("skipping", trackURI)
                     break
 
             except:
