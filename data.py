@@ -165,7 +165,7 @@ class Data(object):
         while True:
             try:
                 features = a.getTrackInfo(uris)
-            except ConnectionError:
+            except ConnectionError, ValueError('TransportableException'):
                 time.sleep(10) # rate-limiting
                 continue
             
