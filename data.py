@@ -142,12 +142,48 @@ class Data(object):
         c, db =  self.getDB()
         db.tracks.remove({})
 
+    def fillTrackDB(self):
+        client, db = self.getDB()
+        uniqTracks = db.uniqueTrackURIs.find({})
+        uniqTrackURIs = {u['track_uri']: True for u in uniqTracks}
+
+        tracksCatalog = db.tracksCatalog.aggregate([{'$group': {"_id": {"uri": '$uri'}}}], allowDiskUse=True)
+        doneSoFar = [u['_id']['uri'] for u in tracksCatalog]
+        client.close()
+        print(len(doneSoFar), '/', len(uniqTrackURIs))
+
+        for done in doneSoFar:
+            uniqTrackURIs[done] = False
+        uniqTrackURIs = [k for k,v in uniqTrackURIs.items() if v]
+        uniqTrackURIs = list(chunked(uniqTrackURIs, 50))
+
+        Parallel(n_jobs=-1, verbose=70)(delayed(self.updateTrackCatalog)(c) for c in uniqTrackURIs)
+
+    def updateTrackCatalog(self, uris):
+        client, db = self.getDB()
+        a = API()
+        while True:
+            try:
+                features = a.getTrackInfo(uris)
+            except ConnectionError:
+                time.sleep(10) # rate-limiting
+                continue
+            
+            res = []
+            for f in features['tracks']:
+                if f:
+                    res.append(f) 
+            if res:
+                inID = db.tracksCatalog.insert_many(res).inserted_ids
+
+            break
+
     def fillTrackFeaturesDB(self):
         client, db = self.getDB()
         uniqTracks = db.uniqueTrackURIs.find({})
         uniqTrackURIs = {u['track_uri']: True for u in uniqTracks}
 
-        featureCache = db.tracksFeatureCache.aggregate([{'$group': {"_id": {"uri":'$uri'}}}], allowDiskUse=True)
+        featureCache = db.tracksFeatureCache.aggregate([{'$group': {"_id": {"uri": '$uri'}}}], allowDiskUse=True)
         doneSoFar = [u['_id']['uri'] for u in featureCache]
         client.close()
 
@@ -167,7 +203,6 @@ class Data(object):
                 a = API()
                 while True:
                     try:
-                        pdb.set_trace()
                         features = a.getTrackFeatures(trackURI)
                         res = []
                         for f in features:
@@ -189,7 +224,6 @@ class Data(object):
         for u in uniqTrackURIs:
             db.uniqueTrackURIs.insert_one({"track_uri": u}).inserted_id
         
-
     def savePlaylistDf(self, df):
         path = self.getPlaylistDfPath()
         df.to_pickle(path)

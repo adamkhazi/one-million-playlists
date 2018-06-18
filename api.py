@@ -11,9 +11,9 @@ class API:
         self.__sp.trace = False
         self.__sp.trace_out = False
 
-    def getTrackInfo(self, trackURI):
-        track = self.__sp.track(trackURI)
-        return track
+    def getTrackInfo(self, trackURIs):
+        tracks = self.__sp.tracks(trackURIs)
+        return tracks
 
     def getAlbumInfo(self, albumURI):
         album = self.__sp.album(albumURI)
@@ -27,6 +27,6 @@ class API:
         track = self.__sp.audio_analysis(trackURI)
         return track
 
-    def getTrackFeatures(self, trackURI):
-        track = self.__sp.audio_features(trackURI)        
+    def getTrackFeatures(self, trackURIs):
+        track = self.__sp.audio_features(trackURIs)        
         return track
