@@ -9,12 +9,10 @@ import json
 from joblib import Parallel, delayed
 from more_itertools import chunked
 import time
+from random import randint
 
 from api import API
 import pdb
-
-def unwrap_self(arg, **kwarg):
-    return Data.updateTrackFeatureData(*arg, **kwarg)
 
 class Data(object):
     def __init__(self):
@@ -145,17 +143,12 @@ class Data(object):
         db.tracks.remove({})
 
     def fillTrackFeaturesDB(self):
-        #uniqTrackURIs = list(chunked(uniqTrackURIs), 50)
         client, db = self.getDB()
         uniqTracks = db.uniqueTrackURIs.find({})
         uniqTrackURIs = {u['track_uri']: True for u in uniqTracks}
 
         featureCache = db.tracksFeatureCache.aggregate([{'$group': {"_id": {"uri":'$uri'}}}], allowDiskUse=True)
         doneSoFar = [u['_id']['uri'] for u in featureCache]
-        #uniqueTrackURIs = db.uniqueTrackURIs.aggregate([{"$match": { 'track_uri': {'$nin': featureCache}}}], allowDiskUse=True)
-        #uniqueTrackURIs = db.uniqueTrackURIs.find({"uri": {"$nin": featureCache}})
-        #tracksNotDownloaded = [u['track_uri'] for u in uniqueTrackURIs] 
-        #pdb.set_trace()
         client.close()
 
         for done in doneSoFar:
@@ -165,8 +158,6 @@ class Data(object):
 
         for i in tqdm(uniqTrackURIs):
             self.updateTrackFeatureData(i)
-
-        #Parallel(n_jobs=-1, verbose=100)(delayed(self.updateTrackFeatureData)(uri) for uri in zip([self]*len(uniqTrackURIs), uniqTrackURIs))
 
     def updateTrackFeatureData(self, trackURI):
         c, db = self.getDB()
@@ -185,15 +176,10 @@ class Data(object):
                         inID = db.tracksFeatureCache.insert_many(res).inserted_ids
                         break  
                     except ConnectionError:
-                        #c.close()
-                        time.sleep(60)
-                        #c, db = self.getDB()
+                        pass
                 break
             except:
-                #c.close()
-                time.sleep(60)
-                #c, db = self.getDB()
-        #c.close()
+                pass
 
     def insertDistinctURIs(self):
         c, db = self.getDB()
