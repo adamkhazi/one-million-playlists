@@ -258,3 +258,24 @@ class Data(object):
                 'valence','tempo']] = trackDf['track_uri'].progress_apply(apiFields)
 
         return trackDf
+
+    def getAllUniqueTrackFeatures(self):
+        c, db = self.getDB()
+        trackFeatures = db.tracksFeatureCache.aggregate([
+         {"$lookup": {"from":"tracksCatalog", "localField":"uri", "foreignField": "uri", "as": "catalog"}},
+         {'$project': {"_id": 0, "uri": 1, "danceability": 1, "energy": 1, "key": 1, "loudness": 1, "mode": 1, "speechiness": 1, "acousticness": 1,
+                    "instrumentalness": 1, "liveness": 1, "valence": 1, "tempo": 1, "time_signature": 1, "catalog.popularity": 1}}
+        ], allowDiskUse=True)
+
+        # $lookup for popularity
+
+        return pd.DataFrame(list(trackFeatures))
+
+    def createPlaylistAvgFeatures(self):
+        c, db = self.getDB()
+        db.tracks.aggregate([
+            {"$lookup": {"from":"tracksFeatureCache", "localField": "track_uri", "foreignField": "uri", "as": "trackFeatures"}},
+            {"$group": {"_id": "playlist_pid", "avgDanceability": {"$avg": "$trackFeatures.danceability"}}}, 
+            {"$project": {"_id": 0, "playlist_pid": 1, "avgDanceability": 1}}, 
+            {"$out": "playlistAvgFeatures"}
+        ], allowDiskUse=True) 
