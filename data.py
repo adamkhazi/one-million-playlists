@@ -4,6 +4,7 @@ from datetime import datetime
 import pandas as pd
 from tqdm import tqdm
 from pandas.io.json import json_normalize
+import numpy as np
 from pymongo import MongoClient
 import json
 from joblib import Parallel, delayed
@@ -274,8 +275,49 @@ class Data(object):
     def createPlaylistAvgFeatures(self):
         c, db = self.getDB()
         db.tracks.aggregate([
-            {"$lookup": {"from":"tracksFeatureCache", "localField": "track_uri", "foreignField": "uri", "as": "trackFeatures"}},
-            {"$group": {"_id": "playlist_pid", "avgDanceability": {"$avg": "$trackFeatures.danceability"}}}, 
-            {"$project": {"_id": 0, "playlist_pid": 1, "avgDanceability": 1}}, 
+            {"$lookup": {"from": "tracksFeatureCache", "localField": "track_uri", "foreignField": "uri", "as": "trackFeatures"}},
+            {"$unwind": "$trackFeatures" },
+            {"$group": {"_id": "$playlist_pid", "avgEnergy": {"$avg": "$trackFeatures.energy" },
+             "avgDanceability": {"$avg": "$trackFeatures.danceability" },
+             "avgKey": {"$avg": "$trackFeatures.key"}, 
+             "avgLoudness": {"$avg": "$trackFeatures.loudness"},
+             "avgMode": {"$avg": "$trackFeatures.mode"},
+             "avgSpeechiness": {"$avg": "$trackFeatures.speechiness"},
+             "avgAcousticness": {"$avg": "$trackFeatures.acousticness"},
+             "avgInstrumentalness": {"$avg": "$trackFeatures.instrumentalness"},
+             "avgLiveness": {"$avg": "$trackFeatures.liveness"},
+             "avgValence": {"$avg": "$trackFeatures.valence"},
+             "avgTempo": {"$avg": "$trackFeatures.tempo"},
+             "avgTimeSig": {"$avg": "$trackFeatures.time_signature"}}}, 
+            #{"$project": {"_id": 0, "playlist_pid": 1, "avgEnergy"} },
             {"$out": "playlistAvgFeatures"}
         ], allowDiskUse=True) 
+
+    def createPlaylistMaxFeatures(self):
+        c, db = self.getDB()
+        db.tracks.aggregate([
+            {"$lookup": {"from": "tracksFeatureCache", "localField": "track_uri", "foreignField": "uri", "as": "trackFeatures"}},
+            {"$unwind": "$trackFeatures" },
+            {"$group": {"_id": "$playlist_pid", 
+             "maxEnergy": {"$max": "$trackFeatures.energy"},
+             "maxDanceability": {"$max": "$trackFeatures.danceability" },
+             "maxKey": {"$max": "$trackFeatures.key"}, 
+             "maxLoudness": {"$max": "$trackFeatures.loudness"},
+             "maxMode": {"$max": "$trackFeatures.mode"},
+             "maxSpeechiness": {"$max": "$trackFeatures.speechiness"},
+             "maxAcousticness": {"$max": "$trackFeatures.acousticness"},
+             "maxInstrumentalness": {"$max": "$trackFeatures.instrumentalness"},
+             "maxLiveness": {"$max": "$trackFeatures.liveness"},
+             "maxValence": {"$max": "$trackFeatures.valence"},
+             "maxTempo": {"$max": "$trackFeatures.tempo"},
+             "maxTimeSig": {"$max": "$trackFeatures.time_signature"}}}, 
+            #{"$project": {"_id": 0, "playlist_pid": 1, "avgEnergy"} },
+            {"$out": "playlistMaxFeatures"}
+        ], allowDiskUse=True)
+
+    def getTrackFeatures(self):
+        c, db = self.getDB()
+        featureCursor = db.tracksFeatureCache.find()
+        trackFeatures =  list(map(lambda x: list(x.values()), db.tracksFeatureCache.find({}, {"_id": False, "type": False, "id": False, "uri": False, "track_href": False, "analysis_url": False})))
+        res = np.array(trackFeatures)
+        return res
