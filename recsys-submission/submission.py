@@ -20,6 +20,11 @@ class Submission:
         with open(challengeSetPath) as f:
             challengeSet = json.load(f)
 
+        print("fetching seed tracks...")
+        seedTracks = {track["track_uri"]:True for playlist in challengeSet["playlists"] for track in playlist["tracks"]}
+
+        trackURIs = [uri for uri in trackURIs if uri not in seedTracks]
+
         print("sampling...")
         res = []
         for playlist in tqdm(challengeSet["playlists"]):
@@ -27,9 +32,6 @@ class Submission:
             subRes.append(playlist["pid"])
             subRes.extend(sample(trackURIs, 500))
             res.append(subRes)
-
-        print("res looks like:")
-        print(res[0])
 
         print("saving...")
         with open(dict(line.strip().split('=') for line in open("../project.config"))["CHALLENGE_SET_DEST"], 'w') as f:
