@@ -1,3 +1,5 @@
+from sklearn.metrics import average_precision_score
+
 class Evaluation:
     def exactSetMatches(self, gold, test):
         gold = set(gold)
@@ -8,3 +10,5 @@ class Evaluation:
 
         return count/len(test)
 
+    def avgPrecisionScore(self, gold, test):
+        return average_precision_score(gold, test)
