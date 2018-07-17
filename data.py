@@ -315,9 +315,9 @@ class Data(object):
             {"$out": "playlistMaxFeatures"}
         ], allowDiskUse=True)
 
-    def getTrackFeatures(self):
+    def getTrackFeatures(self, limNr=0):
         c, db = self.getDB()
         featureCursor = db.tracksFeatureCache.find()
-        trackFeatures =  list(map(lambda x: list(x.values()), db.tracksFeatureCache.find({}, {"_id": False, "type": False, "id": False, "uri": False, "track_href": False, "analysis_url": False})))
+        trackFeatures =  list(map(lambda x: list(x.values()), db.tracksFeatureCache.find({}, {"_id": False, "type": False, "id": False, "uri": False, "track_href": False, "analysis_url": False}).limit( limNr )))
         res = np.array(trackFeatures)
         return res
