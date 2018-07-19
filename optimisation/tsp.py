@@ -27,24 +27,26 @@ from deap import tools
 import sys
 import os
 
+from sklearn.preprocessing import MinMaxScaler
+
 sys.path.append(os.path.abspath('../'))
 from data import Data
 
 import pdb
-
-# gr*.json contains the distance map in list of list style in JSON format
-# Optimal solutions are : gr17 = 2085, gr24 = 1272, gr120 = 6942
-#with open("gr17.json", "r") as tsp_data:
-    #tsp = json.load(tsp_data)
 
 d = Data()
 trackFeatures = d.getTrackFeatures( 20000 )
 SET_SIZE = 4
 NR_FEATURES = trackFeatures.shape[1]
 
-ideal = [0.458, 0.591, 5, -5.621, 1, 0.0326, 0.568, 0.0, 0.286, 0.654, 183.9, 161187, 3]
+#scaler = MinMaxScaler()
+#trackFeatures = scaler.fit_transform(trackFeatures)
 
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+pdb.set_trace()
+
+ideal = [0.458, 0.591, 5, -5.621, 1, 0.0326, 0.568, 0.0, 0.286, 0.654, 50.558, 161187, 3]
+
+creator.create("FitnessMin", base.Fitness, weights=(-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0))
 creator.create("Individual", array.array, typecode='i', fitness=creator.FitnessMin)
 
 toolbox = base.Toolbox()
@@ -61,7 +63,7 @@ def evalTSP(individual):
     for gene in individual:
         for i, f in enumerate(trackFeatures[gene]):
             total[i] += abs(ideal[i]-f)
-    return sum(total),
+    return tuple(total)
 
 def feasible(individual):
     uniq = set()
