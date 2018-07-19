@@ -42,7 +42,7 @@ trackFeatures = d.getTrackFeatures( 20000 )
 SET_SIZE = 4
 NR_FEATURES = trackFeatures.shape[1]
 
-ideal = [2 for i in range(NR_FEATURES)]
+ideal = [0.458, 0.591, 5, -5.621, 1, 0.0326, 0.568, 0.0, 0.286, 0.654, 183.9, 161187, 3]
 
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", array.array, typecode='i', fitness=creator.FitnessMin)
