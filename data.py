@@ -317,7 +317,18 @@ class Data(object):
 
     def getTrackFeatures(self, limNr=0):
         c, db = self.getDB()
-        featureCursor = db.tracksFeatureCache.find()
         trackFeatures =  list(map(lambda x: list(x.values()), db.tracksFeatureCache.find({}, {"_id": False, "type": False, "id": False, "uri": False, "track_href": False, "analysis_url": False}).limit( limNr )))
         res = np.array(trackFeatures)
+        return res
+    
+    def getPlaylistAvgFeatures(self, limNr=0):
+        c, db = self.getDB()
+        playlistFeatures =  list(map(lambda x: list(x.values()), db.playlistAvgFeatures.find({}, {"_id": False}).limit( limNr )))
+        res = np.array(playlistFeatures)
+        return res
+
+    def getPlaylistMaxFeatures(self, limNr=0):
+        c, db = self.getDB()
+        playlistFeatures =  list(map(lambda x: list(x.values()), db.playlistMaxFeatures.find({}, {"_id": False}).limit( limNr )))
+        res = np.array(playlistFeatures)
         return res
