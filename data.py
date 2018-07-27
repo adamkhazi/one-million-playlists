@@ -366,5 +366,5 @@ class Data(object):
             newEPF['playlist_name'] = ep['name']
             newEPF['playlist_id'] = ep['id']
             newEPF['playlist_tracks'] = res
-            inID = db.editorialPlaylistTrackFeatures.insert_many(res).inserted_ids
+            inID = db.editorialPlaylistTrackFeatures.insert_many(newEPF).inserted_ids
 
