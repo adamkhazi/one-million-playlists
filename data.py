@@ -332,3 +332,19 @@ class Data(object):
         playlistFeatures =  list(map(lambda x: list(x.values()), db.playlistMaxFeatures.find({}, {"_id": False}).limit( limNr )))
         res = np.array(playlistFeatures)
         return res
+
+    def downloadedEditorialPlaylists(self):
+        c, db = self.getDB()
+        a = API()
+        editorial = a.getFeaturedPlaylists()
+        for i in editorial['playlists']['items']:
+            ep = a.getPlaylist(i['id'])
+            if db.editorialPlaylists.find({'id': ep['id']}).count() == 0:
+                db.editorialPlaylists.insert_one(ep)
+
+    def downloadedSpecificEditorialPlaylist(self, uri):
+        c, db = self.getDB()
+        a = API()
+        ep = a.getPlaylist(uri)
+        if db.editorialPlaylists.find({'id': ep['id']}).count() == 0:
+            db.editorialPlaylists.insert_one(ep)

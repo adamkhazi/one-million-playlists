@@ -30,3 +30,11 @@ class API:
     def getTrackFeatures(self, trackURIs):
         track = self.__sp.audio_features(trackURIs)        
         return track
+
+    def getFeaturedPlaylists(self, limit=50):
+        p = self.__sp.featured_playlists(limit=limit)        
+        return p
+
+    def getPlaylist(self, id):
+        p = self.__sp.user_playlist('spotify', id)        
+        return p
