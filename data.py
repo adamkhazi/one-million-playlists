@@ -368,3 +368,42 @@ class Data(object):
             newEPF['playlist_tracks'] = res
             inID = db.editorialPlaylistTrackFeatures.insert_many(newEPF).inserted_ids
 
+    def createEditorialPlaylistAvgFeatures(self):
+        c, db = self.getDB()
+        db.editorialPlaylistTrackFeatures.aggregate([
+            { $unwind: "$playlist_tracks" },
+            { $group : { _id: "$playlist_name",
+                 "avgEnergy" : { "$avg": "$playlist_tracks.energy" },
+                 "avgDanceability": {"$avg": "$playlist_tracks.danceability" },
+                 "avgKey": {"$avg": "$playlist_tracks.key"},
+                 "avgLoudness": {"$avg": "$playlist_tracks.loudness"},
+                 "avgMode": {"$avg": "$playlist_tracks.mode"},
+                 "avgSpeechiness": {"$avg": "$playlist_tracks.speechiness"},
+                 "avgAcousticness": {"$avg": "$playlist_tracks.acousticness"},
+                 "avgInstrumentalness": {"$avg": "$playlist_tracks.instrumentalness"},
+                 "avgLiveness": {"$avg": "$playlist_tracks.liveness"},
+                 "avgValence": {"$avg": "$playlist_tracks.valence"},
+                 "avgTempo": {"$avg": "$playlist_tracks.tempo"},
+                 "avgTimeSig": {"$avg": "$playlist_tracks.time_signature"}}},
+            {"$out": "editorialPlaylistAvgFeatures" }
+        ], allowDiskUse=True) }
+
+    def createEditorialPlaylistMaxFeatures(self):
+        c, db = self.getDB()
+        db.editorialPlaylistTrackFeatures.aggregate([
+            { $unwind: "$playlist_tracks" },
+            { $group : { _id: "$playlist_name",
+                 "maxEnergy" : { "$max": "$playlist_tracks.energy" },
+                 "maxDanceability": {"$max": "$playlist_tracks.danceability" },
+                 "maxKey": {"$max": "$playlist_tracks.key"},
+                 "maxLoudness": {"$max": "$playlist_tracks.loudness"},
+                 "maxMode": {"$max": "$playlist_tracks.mode"},
+                 "maxSpeechiness": {"$max": "$playlist_tracks.speechiness"},
+                 "maxAcousticness": {"$max": "$playlist_tracks.acousticness"},
+                 "maxInstrumentalness": {"$max": "$playlist_tracks.instrumentalness"},
+                 "maxLiveness": {"$max": "$playlist_tracks.liveness"},
+                 "maxValence": {"$max": "$playlist_tracks.valence"},
+                 "maxTempo": {"$max": "$playlist_tracks.tempo"},
+                 "maxTimeSig": {"$max": "$playlist_tracks.time_signature"}}},
+            {"$out": "editorialPlaylistMaxFeatures" }
+        ], allowDiskUse=True) }
