@@ -348,3 +348,23 @@ class Data(object):
         ep = a.getPlaylist(uri)
         if db.editorialPlaylists.find({'id': ep['id']}).count() == 0:
             db.editorialPlaylists.insert_one(ep)
+
+    def downloadedEditorialPlaylistTrackFeatures(self):
+        c, db = self.getDB()
+        a = API()
+        eps = db.editorialPlaylists.find()
+        for ep in eps:
+            trackURIs = [t['track']['uri'] for t in ep['tracks']['items']]
+            trackURIs = list(chunked(trackURIs, 50))
+            res = []
+            for chunk in trackURIs:
+                chunkFeatures = a.getTrackFeatures(chunk)
+                for f in chunkFeatures:
+                    if f:
+                        res.append(f)
+            newEPF = dict()
+            newEPF['playlist_name'] = ep['name']
+            newEPF['playlist_id'] = ep['id']
+            newEPF['playlist_tracks'] = res
+            inID = db.editorialPlaylistTrackFeatures.insert_many(res).inserted_ids
+
