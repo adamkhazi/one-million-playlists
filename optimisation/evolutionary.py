@@ -26,6 +26,7 @@ from deap import tools
 
 import sys
 import os
+import math
 
 from sklearn.preprocessing import MinMaxScaler
 
@@ -35,18 +36,23 @@ from data import Data
 import pdb
 
 d = Data()
-trackFeatures = d.getTrackFeatures( 20000 )
-SET_SIZE = 4
-NR_FEATURES = trackFeatures.shape[1]
+SET_SIZE = 5
+#NR_FEATURES = trackFeatures.shape[1]
+NR_FEATURES = 3
+FEATURE_INDICES = [0,1,10]
+trackFeatures, trackNames = d.getTrackFeaturesWNames( 150000 )
+trackFeatures = trackFeatures[:,FEATURE_INDICES]
 
-#scaler = MinMaxScaler()
-#trackFeatures = scaler.fit_transform(trackFeatures)
+# features have equal importance
+scaler = MinMaxScaler()
+trackFeatures = scaler.fit_transform(trackFeatures)
 
-pdb.set_trace()
+cons = d.getGoldSetAvgCons('Fun Run 150–165 BPM')
 
-ideal = [0.458, 0.591, 5, -5.621, 1, 0.0326, 0.568, 0.0, 0.286, 0.654, 50.558, 161187, 3]
+#ideal = [0.458, 0.591, 5, -5.621, 1, 0.0326, 0.568, 0.0, 0.286, 0.654, 50.558, 161187, 3]
+ideal = [cons[i] for i in FEATURE_INDICES]
 
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0,-1.0))
+creator.create("FitnessMin", base.Fitness, weights=(-1.0,-1.0,-1.0))
 creator.create("Individual", array.array, typecode='i', fitness=creator.FitnessMin)
 
 toolbox = base.Toolbox()
@@ -62,7 +68,7 @@ def evalTSP(individual):
     total = [0 for i in range(NR_FEATURES)]
     for gene in individual:
         for i, f in enumerate(trackFeatures[gene]):
-            total[i] += abs(ideal[i]-f)
+            total[i] += math.sqrt((ideal[i]-f)**2)
     return tuple(total)
 
 def feasible(individual):
@@ -85,9 +91,7 @@ toolbox.register("evaluate", evalTSP)
 toolbox.decorate("evaluate", tools.DeltaPenalty(feasible, 10000.0, distance))
 
 def main():
-    random.seed(169)
-
-    pop = toolbox.population(n=1000)
+    pop = toolbox.population(n=10000)
 
     hof = tools.HallOfFame(10)
     stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -96,8 +100,17 @@ def main():
     stats.register("min", numpy.min)
     stats.register("max", numpy.max)
     algorithms.eaSimple(pop, toolbox, 0.7, 0.3, 250, stats=stats, halloffame=hof)
+
+
     return pop, stats, hof
 
 if __name__ == "__main__":
     pop, stats, hof = main()
+
+    print('track names in hof individual set size', SET_SIZE)
+    for h in hof:
+        for i in h:
+            print(trackNames[i])
+        print(' === ')
+
     pdb.set_trace()

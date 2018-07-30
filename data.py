@@ -320,6 +320,33 @@ class Data(object):
         trackFeatures =  list(map(lambda x: list(x.values()), db.tracksFeatureCache.find({}, {"_id": False, "type": False, "id": False, "uri": False, "track_href": False, "analysis_url": False}).limit( limNr )))
         res = np.array(trackFeatures)
         return res
+
+    def getTrackFeaturesWNames(self, limNr=0):
+        c, db = self.getDB()
+        trackFeatures =  list(map(lambda x: list(x.values()), db.tracksFeatureCache.find({}, {"_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False}).limit( limNr )))
+        
+        uris = []
+        for t in trackFeatures:
+            uris.append(t[11])
+            del t[11]
+
+        cur = db.tracksCatalog.find({'uri': {'$in': uris}}, {'name': True, 'uri': True})
+        trackNames = {c['uri']: c['name'] for c in cur}
+        orderedTrackNames = []
+
+        deleteIdxs = []
+        for i, u in enumerate(uris):
+            if u in trackNames:
+                orderedTrackNames.append(trackNames[u])
+            else:
+                deleteIdxs.append(i)
+
+        for d in deleteIdxs:
+            del trackFeatures[d]
+
+
+        trackFeatures = np.array(trackFeatures)
+        return trackFeatures, orderedTrackNames
     
     def getPlaylistAvgFeatures(self, limNr=0):
         c, db = self.getDB()
@@ -339,6 +366,14 @@ class Data(object):
         editorial = a.getFeaturedPlaylists()
         for i in editorial['playlists']['items']:
             ep = a.getPlaylist(i['id'])
+            skipping = False
+            for st in ep['tracks']['items']:
+                if not st['track']['uri']:
+                    print('found none')
+                    skipping = True
+                    break
+            if skipping: continue
+
             if db.editorialPlaylists.find({'id': ep['id']}).count() == 0:
                 db.editorialPlaylists.insert_one(ep)
 
@@ -346,6 +381,14 @@ class Data(object):
         c, db = self.getDB()
         a = API()
         ep = a.getPlaylist(uri)
+        skipping = False
+        for st in ep['tracks']['items']:
+            if not st['track']['uri']:
+                print('found none')
+                skipping = True
+                break
+        if skipping: return None
+
         if db.editorialPlaylists.find({'id': ep['id']}).count() == 0:
             db.editorialPlaylists.insert_one(ep)
 
@@ -362,17 +405,19 @@ class Data(object):
                 for f in chunkFeatures:
                     if f:
                         res.append(f)
+
             newEPF = dict()
             newEPF['playlist_name'] = ep['name']
             newEPF['playlist_id'] = ep['id']
             newEPF['playlist_tracks'] = res
-            inID = db.editorialPlaylistTrackFeatures.insert_many(newEPF).inserted_ids
+
+            db.editorialPlaylistTrackFeatures.insert_one(newEPF)
 
     def createEditorialPlaylistAvgFeatures(self):
         c, db = self.getDB()
         db.editorialPlaylistTrackFeatures.aggregate([
-            { $unwind: "$playlist_tracks" },
-            { $group : { _id: "$playlist_name",
+            { "$unwind": "$playlist_tracks" },
+            { "$group" : { "_id": "$playlist_name",
                  "avgEnergy" : { "$avg": "$playlist_tracks.energy" },
                  "avgDanceability": {"$avg": "$playlist_tracks.danceability" },
                  "avgKey": {"$avg": "$playlist_tracks.key"},
@@ -386,13 +431,13 @@ class Data(object):
                  "avgTempo": {"$avg": "$playlist_tracks.tempo"},
                  "avgTimeSig": {"$avg": "$playlist_tracks.time_signature"}}},
             {"$out": "editorialPlaylistAvgFeatures" }
-        ], allowDiskUse=True) }
+        ], allowDiskUse=True)
 
     def createEditorialPlaylistMaxFeatures(self):
         c, db = self.getDB()
         db.editorialPlaylistTrackFeatures.aggregate([
-            { $unwind: "$playlist_tracks" },
-            { $group : { _id: "$playlist_name",
+            { "$unwind": "$playlist_tracks" },
+            { "$group" : { "_id": "$playlist_name",
                  "maxEnergy" : { "$max": "$playlist_tracks.energy" },
                  "maxDanceability": {"$max": "$playlist_tracks.danceability" },
                  "maxKey": {"$max": "$playlist_tracks.key"},
@@ -406,4 +451,14 @@ class Data(object):
                  "maxTempo": {"$max": "$playlist_tracks.tempo"},
                  "maxTimeSig": {"$max": "$playlist_tracks.time_signature"}}},
             {"$out": "editorialPlaylistMaxFeatures" }
-        ], allowDiskUse=True) }
+        ], allowDiskUse=True)
+
+    def getGoldSetAvgCons(self, playlistName):
+        c, db = self.getDB()
+        cur = db.editorialPlaylistAvgFeatures.find({'_id': playlistName}, {"_id": False})
+        return list(cur[0].values())
+
+    def getGoldSetMaxCons(self, playlistName):
+        c, db = self.getDB()
+        cur = db.editorialPlaylistMaxFeatures.find({'_id': playlistName}, {"_id": False})
+        return list(cur[0].values())
