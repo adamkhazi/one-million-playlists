@@ -24,6 +24,8 @@ from deap import base
 from deap import creator
 from deap import tools
 
+import numpy as np
+
 import sys
 import os
 import math
@@ -32,27 +34,36 @@ from sklearn.preprocessing import MinMaxScaler
 
 sys.path.append(os.path.abspath('../'))
 from data import Data
+from evaluation import Evaluation
 
 import pdb
 
 d = Data()
-SET_SIZE = 5
+SET_SIZE = 70
 #NR_FEATURES = trackFeatures.shape[1]
-NR_FEATURES = 3
-FEATURE_INDICES = [0,1,10]
-trackFeatures, trackNames = d.getTrackFeaturesWNames( 150000 )
+NR_FEATURES = 13
+FEATURE_INDICES = [i for i in range(13)]
+trackFeatures, trackNames, trackURIs = d.getTrackFeaturesWNames( 500000 )
 trackFeatures = trackFeatures[:,FEATURE_INDICES]
 
 # features have equal importance
 scaler = MinMaxScaler()
 trackFeatures = scaler.fit_transform(trackFeatures)
 
-cons = d.getGoldSetAvgCons('Fun Run 150–165 BPM')
+#cons, epTrackURIs = d.getGoldSetAvgCons('Fun Run 150–165 BPM')
+cons, ugpTrackURIs = d.getUGSetAvgCons(0) # playlist id 0
+
+#pdb.set_trace()
+cons = np.reshape(cons, (-1,13))
+cons = scaler.transform(cons)
+cons = cons[0]
 
 #ideal = [0.458, 0.591, 5, -5.621, 1, 0.0326, 0.568, 0.0, 0.286, 0.654, 50.558, 161187, 3]
 ideal = [cons[i] for i in FEATURE_INDICES]
 
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,-1.0,-1.0))
+weights = tuple(-1.0 for i in range(NR_FEATURES))
+
+creator.create("FitnessMin", base.Fitness, weights=weights)
 creator.create("Individual", array.array, typecode='i', fitness=creator.FitnessMin)
 
 toolbox = base.Toolbox()
@@ -112,5 +123,10 @@ if __name__ == "__main__":
         for i in h:
             print(trackNames[i])
         print(' === ')
+
+    bestSet = hof[0]
+    bestSetURIs = [trackURIs[i] for i in hof[0]]
+    eval = Evaluation()
+    print(eval.exactSetMatches(ugpTrackURIs, bestSetURIs))
 
     pdb.set_trace()

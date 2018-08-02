@@ -323,30 +323,37 @@ class Data(object):
 
     def getTrackFeaturesWNames(self, limNr=0):
         c, db = self.getDB()
-        trackFeatures =  list(map(lambda x: list(x.values()), db.tracksFeatureCache.find({}, {"_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False}).limit( limNr )))
-        
+
+        #trackFeatures =  list(map(lambda x: list(x.values()), db.tracksFeatureCache.find({}, {"_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False}).limit( limNr )))
+        cur = db.tracksFeatureCache.aggregate([ { '$match' : { } }, { '$limit': limNr }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False } } ], allowDiskUse=True)
+        trackFeatures = [list(x.values()) for x in cur]
+
         uris = []
         for t in trackFeatures:
             uris.append(t[11])
             del t[11]
 
-        cur = db.tracksCatalog.find({'uri': {'$in': uris}}, {'name': True, 'uri': True})
+        #cur = db.tracksCatalog.aggregate([{ '$match' : {'uri': {'$in': uris}} }, {'$project': {'name': True, 'uri': True} }], allowDiskUse=True)
+        cur = db.tracksCatalog.aggregate([{ '$match' : { } }], allowDiskUse=True)
+
+        #cur = db.tracksCatalog.find({'uri': {'$in': uris}}, {'name': True, 'uri': True})
         trackNames = {c['uri']: c['name'] for c in cur}
         orderedTrackNames = []
+        orderedURIs = []
 
         deleteIdxs = []
         for i, u in enumerate(uris):
             if u in trackNames:
                 orderedTrackNames.append(trackNames[u])
+                orderedURIs.append(u)
             else:
                 deleteIdxs.append(i)
 
         for d in deleteIdxs:
             del trackFeatures[d]
 
-
         trackFeatures = np.array(trackFeatures)
-        return trackFeatures, orderedTrackNames
+        return trackFeatures, orderedTrackNames, orderedURIs
     
     def getPlaylistAvgFeatures(self, limNr=0):
         c, db = self.getDB()
@@ -456,9 +463,18 @@ class Data(object):
     def getGoldSetAvgCons(self, playlistName):
         c, db = self.getDB()
         cur = db.editorialPlaylistAvgFeatures.find({'_id': playlistName}, {"_id": False})
-        return list(cur[0].values())
+        ep = db.editorialPlaylists.find({'name': playlistName})[0]
+        trackURIs = [t['track']['uri'] for t in ep['tracks']['items']]
+        return list(cur[0].values()), trackURIs
 
     def getGoldSetMaxCons(self, playlistName):
         c, db = self.getDB()
         cur = db.editorialPlaylistMaxFeatures.find({'_id': playlistName}, {"_id": False})
         return list(cur[0].values())
+
+    def getUGSetAvgCons(self, playlistNr):
+        c, db = self.getDB()
+        cur = db.tracks.find({'playlist_pid': playlistNr}, {"track_uri": True})
+        trackURIs = [t['track_uri'] for t in cur]
+        cons = db.playlistAvgFeatures.find({'_id': playlistNr})
+        return list(cons[0].values()), trackURIs
