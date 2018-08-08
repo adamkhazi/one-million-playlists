@@ -11,6 +11,7 @@ from joblib import Parallel, delayed
 from more_itertools import chunked
 import time
 from random import randint
+from sklearn.preprocessing import MinMaxScaler
 
 from api import API
 import pdb
@@ -321,26 +322,33 @@ class Data(object):
         res = np.array(trackFeatures)
         return res
 
-    def getTrackFeaturesWNames(self, limNr=0):
+    def getTrackFeaturesWNames(self, preDefinedURIs, limNr=0):
         c, db = self.getDB()
 
-        #trackFeatures =  list(map(lambda x: list(x.values()), db.tracksFeatureCache.find({}, {"_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False}).limit( limNr )))
-        cur = db.tracksFeatureCache.aggregate([ { '$match' : { } }, { '$limit': limNr }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False } } ], allowDiskUse=True)
-        trackFeatures = [list(x.values()) for x in cur]
+        # to be useful when ug uris provided in predefinedURIs
+        cur = db.tracksFeatureCache.aggregate([ { '$match' : { 'uri': { '$in': preDefinedURIs } } }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False, "duration_ms": False } } ], allowDiskUse=True)
+        trackFeatures = [x for x in cur]
 
-        uris = []
+        # get _all_ gold set track features
+        cur = db.tracksFeatureCacheEditorial.aggregate([ { '$match' : { } }, { '$limit': limNr }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False, "duration_ms": False } } ], allowDiskUse=True)
+        trackFeatures.extend([x for x in cur])
+
+        # get limited ug set track features
+        cur = db.tracksFeatureCache.aggregate([ { '$match' : { } }, { '$limit': limNr }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False, "duration_ms": False } } ], allowDiskUse=True)
+        trackFeatures.extend([x for x in cur])
+
+        uris = [] # remove id field
         for t in trackFeatures:
-            uris.append(t[11])
-            del t[11]
+            uris.append(t['uri'])
+            del t['uri']
 
-        #cur = db.tracksCatalog.aggregate([{ '$match' : {'uri': {'$in': uris}} }, {'$project': {'name': True, 'uri': True} }], allowDiskUse=True)
+        # get corresponding track names
         cur = db.tracksCatalog.aggregate([{ '$match' : { } }], allowDiskUse=True)
-
-        #cur = db.tracksCatalog.find({'uri': {'$in': uris}}, {'name': True, 'uri': True})
         trackNames = {c['uri']: c['name'] for c in cur}
         orderedTrackNames = []
         orderedURIs = []
 
+        # order
         deleteIdxs = []
         for i, u in enumerate(uris):
             if u in trackNames:
@@ -465,16 +473,112 @@ class Data(object):
         cur = db.editorialPlaylistAvgFeatures.find({'_id': playlistName}, {"_id": False})
         ep = db.editorialPlaylists.find({'name': playlistName})[0]
         trackURIs = [t['track']['uri'] for t in ep['tracks']['items']]
-        return list(cur[0].values()), trackURIs
+        cons = [c for c in cur]
+        return [cons[0]], trackURIs
 
     def getGoldSetMaxCons(self, playlistName):
         c, db = self.getDB()
         cur = db.editorialPlaylistMaxFeatures.find({'_id': playlistName}, {"_id": False})
-        return list(cur[0].values())
+        cons = [c for c in cur]
+        return [cons[0]]
 
     def getUGSetAvgCons(self, playlistNr):
         c, db = self.getDB()
         cur = db.tracks.find({'playlist_pid': playlistNr}, {"track_uri": True})
         trackURIs = [t['track_uri'] for t in cur]
-        cons = db.playlistAvgFeatures.find({'_id': playlistNr})
-        return list(cons[0].values()), trackURIs
+        cons = db.playlistAvgFeatures.find({'_id': playlistNr}, {"_id": False})
+        cons = [c for c in cons]
+        return [cons[0]], trackURIs
+
+    def closestMatchingUGPlaylist(self, epName):
+        c, db = self.getDB()
+
+        epFeatures = db.editorialPlaylistAvgFeatures.aggregate([{ '$match': { '_id': epName } }, {'$project': {'_id': False} }], allowDiskUse=True)
+        epFeatures = [v for k,v in list(epFeatures)[0].items()]
+
+        ugFeatures = db.playlistAvgFeatures.aggregate([{ '$match': {} }, {'$project': {'_id': False} }], allowDiskUse=True)
+        ugFeatures = [list(ugp.values()) for ugp in ugFeatures]
+
+        ugPIDs = db.playlistAvgFeatures.aggregate([{ '$match': {} }, {'$project': {'_id': True} }], allowDiskUse=True)
+        ugPIDs = [i['_id'] for i in ugPIDs]
+
+        scaler = MinMaxScaler()
+        ugFeatures = scaler.fit_transform(ugFeatures).tolist()
+        epFeatures = scaler.transform([epFeatures])
+        epFeatures = epFeatures[0].tolist()
+
+        diffs = []
+        for ugp in ugFeatures:
+            for ep in epFeatures:
+                diff = [abs(ep-u) for u in ugp]
+                diffs.append(sum(diff))
+
+        diffs, ugPIDs = zip(*sorted(zip(diffs, ugPIDs)))
+        return diffs, ugPIDs
+
+    def getUGPlaylist(self, PID):
+        c, db = self.getDB()
+        cur = db.tracks.aggregate([{ '$match': { 'playlist_pid': PID } }, { '$project': {'track_name': True, 'artist_name': True} }])
+        trackNames, artistNames = [], []
+        for t in cur:
+            trackNames.append(t['track_name'])
+            artistNames.append(t['artist_name'])
+
+        return trackNames, artistNames
+
+    def getUGPlaylistFeaturesAndNames(self):
+        c, db = self.getDB()
+        ugFeatures = db.playlistAvgFeatures.aggregate([{ '$match': {}}, { '$project': {'_id': False} }], allowDiskUse=True)
+        ugFeatures = [list(f.values()) for f in ugFeatures]
+
+        playlistFeatures = db.playlistAvgFeatures.aggregate([
+            {"$match": {} }
+        ], allowDiskUse=True)
+
+        playlistNames = db.tracks.aggregate([
+            { "$group" : {"_id": "$playlist_pid",  "playlist_name": { "$first": "$playlist_name" } }}
+        ], allowDiskUse=True)
+
+
+        playlistFeatures = [list(p.values()) for p in playlistFeatures]
+        playlistNames = [p for p in playlistNames]
+
+        playlistNames = {p['_id']: p['playlist_name'] for p in playlistNames}
+
+        playlistNamesOrdered = []
+
+        for p in playlistFeatures:
+            playlistNamesOrdered.append(playlistNames[p[0]])
+
+        ugFeatures = [p[1:] for p in playlistFeatures]
+
+        return ugFeatures, playlistNamesOrdered
+
+    def getEditorialPlaylistTrackFeatures(self):
+        c, db = self.getDB()
+        cur = db.editorialPlaylistTrackFeatures.aggregate([
+            {'$unwind': '$playlist_tracks'}
+        ], allowDiskUse=True)
+
+        edPlaylists = [c['playlist_tracks'] for c in cur]
+
+        uniqURIs = {p['uri']:False for p in edPlaylists}
+
+        print('before dups removed', len(edPlaylists))
+        
+        for i in range(len(edPlaylists)-1, -1, -1):
+            if not uniqURIs[edPlaylists[i]['uri']]:
+                uniqURIs[edPlaylists[i]['uri']] = True
+            else:
+                del edPlaylists[i]
+
+        print('after dups removed', len(edPlaylists))
+
+        db.tracksFeatureCacheEditorial.insert_many(edPlaylists)
+
+    def convertFeaturesToMatrix(self, a, b):
+        keyOrder = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', \
+         'instrumentalness', 'liveness', 'valence', 'tempo', 'time_signature']
+        aOrd= [[aa[k] for k in keyOrder] for aa in a]
+        bOrd= [[bb[k] for k in keyOrder] for bb in b]
+        return aOrd, bOrd
