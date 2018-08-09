@@ -12,6 +12,8 @@ from more_itertools import chunked
 import time
 from random import randint
 from sklearn.preprocessing import MinMaxScaler
+import re
+
 
 from api import API
 import pdb
@@ -328,13 +330,18 @@ class Data(object):
         # to be useful when ug uris provided in predefinedURIs
         cur = db.tracksFeatureCache.aggregate([ { '$match' : { 'uri': { '$in': preDefinedURIs } } }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False, "duration_ms": False } } ], allowDiskUse=True)
         trackFeatures = [x for x in cur]
+        URISoFar = [t['uri'] for t in trackFeatures]
+        preDefinedURIs = [i for i in preDefinedURIs if i not in URISoFar]
 
-        # get _all_ gold set track features
-        cur = db.tracksFeatureCacheEditorial.aggregate([ { '$match' : { } }, { '$limit': limNr }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False, "duration_ms": False } } ], allowDiskUse=True)
+        # get gold set track features
+        cur = db.tracksFeatureCacheEditorial.aggregate([ { '$match' : { 'uri': { '$in': preDefinedURIs } } }, { '$limit': limNr }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False, "duration_ms": False } } ], allowDiskUse=True)
         trackFeatures.extend([x for x in cur])
+        URISoFar = [t['uri'] for t in trackFeatures]
+
+        limNr = min(limNr - len(trackFeatures), 1)
 
         # get limited ug set track features
-        cur = db.tracksFeatureCache.aggregate([ { '$match' : { } }, { '$limit': limNr }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False, "duration_ms": False } } ], allowDiskUse=True)
+        cur = db.tracksFeatureCache.aggregate([ { '$match' : { 'uri': { '$nin': URISoFar } } }, { '$limit': limNr }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False, "duration_ms": False } } ], allowDiskUse=True)
         trackFeatures.extend([x for x in cur])
 
         uris = [] # remove id field
@@ -343,7 +350,8 @@ class Data(object):
             del t['uri']
 
         # get corresponding track names
-        cur = db.tracksCatalog.aggregate([{ '$match' : { } }], allowDiskUse=True)
+        #cur = db.tracksCatalog.aggregate([{ '$match' : { } }], allowDiskUse=True)
+        cur = db.tracksCatalog.find({}, { 'name': 1, 'uri': 1 })
         trackNames = {c['uri']: c['name'] for c in cur}
         orderedTrackNames = []
         orderedURIs = []
@@ -357,8 +365,8 @@ class Data(object):
             else:
                 deleteIdxs.append(i)
 
-        for d in deleteIdxs:
-            del trackFeatures[d]
+        for i in range(len(deleteIdxs)-1, -1, -1):
+            del trackFeatures[deleteIdxs[i]]
 
         trackFeatures = np.array(trackFeatures)
         return trackFeatures, orderedTrackNames, orderedURIs
@@ -488,7 +496,7 @@ class Data(object):
         trackURIs = [t['track_uri'] for t in cur]
         cons = db.playlistAvgFeatures.find({'_id': playlistNr}, {"_id": False})
         cons = [c for c in cons]
-        return [cons[0]], trackURIs
+        return cons, trackURIs
 
     def closestMatchingUGPlaylist(self, epName):
         c, db = self.getDB()
@@ -576,9 +584,21 @@ class Data(object):
 
         db.tracksFeatureCacheEditorial.insert_many(edPlaylists)
 
-    def convertFeaturesToMatrix(self, a, b):
+    def convertFeaturesToMatrix(self, a1, b1):
+
         keyOrder = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', \
          'instrumentalness', 'liveness', 'valence', 'tempo', 'time_signature']
-        aOrd= [[aa[k] for k in keyOrder] for aa in a]
-        bOrd= [[bb[k] for k in keyOrder] for bb in b]
+        
+        # make cons key names consistent
+        newKeys = []
+        for k in a1[0].keys():
+            newKeys.append((k, re.sub('avg', '', k).lower()))
+        for old, new in newKeys:
+            a1[0][new] = a1[0][old]
+            del a1[0][old]
+        a1[0]['time_signature'] = a1[0]['timesig']
+        del a1[0]['timesig']
+
+        aOrd= [[aa[k] for k in keyOrder] for aa in a1]
+        bOrd= [[bb[k] for k in keyOrder] for bb in b1]
         return aOrd, bOrd

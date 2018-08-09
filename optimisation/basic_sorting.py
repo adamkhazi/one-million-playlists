@@ -20,15 +20,17 @@ from evaluation import Evaluation
 import pdb
 
 d = Data()
-SET_SIZE = 10000
+SET_SIZE = 100
 #NR_FEATURES = trackFeatures.shape[1]
 NR_FEATURES = 12
-FEATURE_INDICES = [i for i in range(13)]
+FEATURE_INDICES = [i for i in range(12)]
 
-#cons, testTrackURIs = d.getGoldSetAvgCons('Fun Run 150–165 BPM')
-cons, testTrackURIs = d.getUGSetAvgCons(31) # running 2.0 ug playlist
+print('getting all features...')
 
-trackFeatures, trackNames, trackURIs = d.getTrackFeaturesWNames( testTrackURIs, 10 )
+cons, testTrackURIs = d.getGoldSetAvgCons('Fun Run 150–165 BPM')
+#cons, testTrackURIs = d.getUGSetAvgCons(31) # running 2.0 ug playlist
+
+trackFeatures, trackNames, trackURIs = d.getTrackFeaturesWNames( testTrackURIs, 100000 )
 #trackFeatures = trackFeatures[:,FEATURE_INDICES]
 
 cons, trackFeatures = d.convertFeaturesToMatrix(cons, trackFeatures)
@@ -38,7 +40,7 @@ scaler = Normalizer()
 trackFeatures = scaler.fit_transform(trackFeatures)
 
 #pdb.set_trace()
-cons = np.reshape(cons, (-1,13))
+cons = np.reshape(cons, (-1,12))
 cons = scaler.transform(cons)
 cons = cons[0]
 
@@ -46,13 +48,14 @@ cons = cons[0]
 ideal = [cons[i] for i in FEATURE_INDICES]
 
 trackDiffs = []
-for track in trackFeatures:
+for track in tqdm(trackFeatures):
     trackDiffSum = 0
-    for cIdx, cIdeal in tqdm(enumerate(cons)):
+    for cIdx, cIdeal in enumerate(cons):
         trackDiffSum += (cIdeal - track[cIdx])**2
     trackDiffs.append(trackDiffSum/len(cons))
 
-trackDiffs, trackURIs = tqdm(zip(*sorted(zip(trackDiffs, trackURIs))))
+print('sorting')
+trackDiffs, trackURIs, trackNames = zip(*sorted(zip(trackDiffs, trackURIs, trackNames)))
 
 #for i in range(20):
     #print(trackDiffs[i], trackNames[i])
