@@ -291,7 +291,9 @@ class Data(object):
              "avgLiveness": {"$avg": "$trackFeatures.liveness"},
              "avgValence": {"$avg": "$trackFeatures.valence"},
              "avgTempo": {"$avg": "$trackFeatures.tempo"},
-             "avgTimeSig": {"$avg": "$trackFeatures.time_signature"}}}, 
+             "avgTimeSig": {"$avg": "$trackFeatures.time_signature"},
+             "avgPopularity": {"$avg": "$trackFeatures.popularity"},
+             "avgReleaseYear": {"$avg": "$trackFeatures.release_date"}}}, 
             #{"$project": {"_id": 0, "playlist_pid": 1, "avgEnergy"} },
             {"$out": "playlistAvgFeatures"}
         ], allowDiskUse=True) 
@@ -313,7 +315,9 @@ class Data(object):
              "maxLiveness": {"$max": "$trackFeatures.liveness"},
              "maxValence": {"$max": "$trackFeatures.valence"},
              "maxTempo": {"$max": "$trackFeatures.tempo"},
-             "maxTimeSig": {"$max": "$trackFeatures.time_signature"}}}, 
+             "maxTimeSig": {"$max": "$trackFeatures.time_signature"},
+             "maxPopularity": {"$max": "$trackFeatures.popularity"},
+             "maxReleaseYear": {"$max": "$trackFeatures.release_date"}}}, 
             #{"$project": {"_id": 0, "playlist_pid": 1, "avgEnergy"} },
             {"$out": "playlistMaxFeatures"}
         ], allowDiskUse=True)
@@ -338,7 +342,7 @@ class Data(object):
         trackFeatures.extend([x for x in cur])
         URISoFar = [t['uri'] for t in trackFeatures]
 
-        limNr = min(limNr - len(trackFeatures), 1)
+        limNr = max(limNr - len(trackFeatures), 1)
 
         # get limited ug set track features
         cur = db.tracksFeatureCache.aggregate([ { '$match' : { 'uri': { '$nin': URISoFar } } }, { '$limit': limNr }, {'$project': { "_id": False, "type": False, "id": False, "track_href": False, "analysis_url": False, "duration_ms": False } } ], allowDiskUse=True)
@@ -423,16 +427,32 @@ class Data(object):
             trackURIs = [t['track']['uri'] for t in ep['tracks']['items']]
             trackURIs = list(chunked(trackURIs, 50))
             res = []
+            resInfo = []
+
             for chunk in trackURIs:
                 chunkFeatures = a.getTrackFeatures(chunk)
+                chunkInfo = a.getTrackInfo(chunk)
+
                 for f in chunkFeatures:
                     if f:
                         res.append(f)
+
+                for f in chunkInfo['tracks']:
+                    if f:
+                        resInfo.append(f)
 
             newEPF = dict()
             newEPF['playlist_name'] = ep['name']
             newEPF['playlist_id'] = ep['id']
             newEPF['playlist_tracks'] = res
+
+            if len(resInfo) == len(newEPF['playlist_tracks']):
+                for i in range(len(newEPF['playlist_tracks'])):
+                    newEPF['playlist_tracks'][i]['popularity'] = int(resInfo[i]['popularity'])
+                    newEPF['playlist_tracks'][i]['release_date'] = int(resInfo[i]['album']['release_date'][:4])
+            else:
+                print(newEPF['playlist_name'], "could not fetch all pop and release dates")
+                print(len(resInfo), len(newEPF['playlist_tracks']))
 
             db.editorialPlaylistTrackFeatures.insert_one(newEPF)
 
@@ -452,7 +472,9 @@ class Data(object):
                  "avgLiveness": {"$avg": "$playlist_tracks.liveness"},
                  "avgValence": {"$avg": "$playlist_tracks.valence"},
                  "avgTempo": {"$avg": "$playlist_tracks.tempo"},
-                 "avgTimeSig": {"$avg": "$playlist_tracks.time_signature"}}},
+                 "avgTimeSig": {"$avg": "$playlist_tracks.time_signature"},
+                 "avgPopularity": {"$avg": "$playlist_tracks.popularity"},
+                 "avgReleaseYear": {"$avg": "$playlist_tracks.release_date"}}},
             {"$out": "editorialPlaylistAvgFeatures" }
         ], allowDiskUse=True)
 
@@ -472,7 +494,9 @@ class Data(object):
                  "maxLiveness": {"$max": "$playlist_tracks.liveness"},
                  "maxValence": {"$max": "$playlist_tracks.valence"},
                  "maxTempo": {"$max": "$playlist_tracks.tempo"},
-                 "maxTimeSig": {"$max": "$playlist_tracks.time_signature"}}},
+                 "maxTimeSig": {"$max": "$playlist_tracks.time_signature"},
+                 "maxPopularity": {"$max": "$playlist_tracks.popularity"},
+                 "maxReleaseYear": {"$max": "$playlist_tracks.release_date"}}},
             {"$out": "editorialPlaylistMaxFeatures" }
         ], allowDiskUse=True)
 
@@ -602,3 +626,134 @@ class Data(object):
         aOrd= [[aa[k] for k in keyOrder] for aa in a1]
         bOrd= [[bb[k] for k in keyOrder] for bb in b1]
         return aOrd, bOrd
+
+    def addFeaturesToTrackFields(self):
+        c, db = self.getDB()
+
+        cur = db.tracksCatalog.find({}, {'uri':1, 'popularity':1})
+        popularity = {c['uri']: c['popularity'] for c in cur}
+
+        cur = db.tracksCatalog.find({}, {'uri': 1, 'album': 1})
+        releaseDate = {c['uri']: c['album']['release_date'] for c in cur}
+
+        for (k, v), (k2, v2) in tqdm(zip(popularity.items(), releaseDate.items())):
+            db.tracksFeatureCache.update(  {'uri': k} , { '$set': { 'popularity' : v, 'release_date': v2  } } ) 
+
+    def addFeaturesToEditorialTrackFields(self):
+        c, db = self.getDB()
+
+        popularity = dict()
+        releaseDate = dict()
+
+        cur = db.editorialPlaylists.find({}, {'uri':1, 'tracks':1})
+        for c in cur:
+            for t in c['tracks']['items']:
+                popularity[t['track']['uri']] = t['track']['popularity']
+                releaseDate[t['track']['uri']] = t['track']['album']['release_date']
+
+        for (k, v), (k2, v2) in tqdm(zip(popularity.items(), releaseDate.items())):
+            db.tracksFeatureCacheEditorial.update(  {'uri': k} , { '$set': { 'popularity' : v, 'release_date': v2  } } ) 
+
+
+    def convertTrackFeatureReleaseDates(self):
+        c, db = self.getDB()
+
+        cur = db.tracksCatalog.find({}, { 'uri':1, 'album':1 })
+        uris = {c['uri']:c['album']['release_date'] for c in cur}
+
+        for k, v in tqdm(uris.items()):
+            db.tracksFeatureCache.update(  {'uri': k} , { '$set': { 'release_date': v[:4]  } } ) 
+
+        cur = db.tracksFeatureCacheEditorial.find({}, { 'uri':1, 'release_date':1 })
+        uris = {c['uri']:c['release_date'] for c in cur}
+
+        for k, v in tqdm(uris.items()):
+            db.tracksFeatureCacheEditorial.update(  {'uri': k} , { '$set': { 'release_date': v[:4]  } } ) 
+
+    def addEditorialAvgFields(self):
+        c, db = self.getDB()
+
+        cur = db.editorialPlaylists.aggregate([{ '$unwind': '$tracks.items' },
+            {'$group': {
+                '_id': '$name',
+                'avgPopularity': { "$avg": "$tracks.items.track.popularity" }
+            }
+        } ], allowDiskUse=True)
+
+        editorialPopAvgs = {c['_id']: c['avgPopularity'] for c in cur}
+
+        cur = db.editorialPlaylists.aggregate([{ '$unwind': '$tracks.items' },
+            { '$project': {'name': 1, 'tracks.items.track.popularity.album.release_date': { '$convert': { 'input': {'$substr': [ '$tracks.items.track.popularity.album.release_date', 0, 4 ] }, 'to': 'int' } } } },
+            {'$group': {
+                '_id': '$name',
+                'avgReleaseYear': { "$avg": 'tracks.items.track.popularity.album.release_date'  }
+            } } 
+            ], allowDiskUse=True)
+
+        editorialReleaseAvgs = {c['_id']: c['avgReleaseYear'] for c in cur}
+
+        pdb.set_trace()
+
+    def getPlaylistWTrackVectors(self, limNr):
+        c, db = self.getDB()
+        playlistTrackVectors = db.tracks.aggregate([{'$match': {} }, {'$project': { '_id': 0, 'album_uri': 0, 'artist_uri': 0, 'playlist_pid': 0 }}, {'$limit': limNr//2}, 
+        {'$lookup':
+            {
+            'from': 'tracksFeatureCache',
+            'localField': 'track_uri',
+            'foreignField': 'uri',
+            'as': 'trackFeatures'    
+        }},
+        {'$unwind': '$trackFeatures'},
+        {'$project': {'trackFeatures._id': 0, 'trackFeatures.type': 0, 'trackFeatures.id': 0, 'trackFeatures.uri': 0, 'trackFeatures.track_href': 0, 'trackFeatures.analysis_url': 0} }
+        ], allowDiskUse=True)
+        
+        t = [v for v in playlistTrackVectors]
+        collectedTrackURIs = []
+        for i in range(len(t)):
+            tFeaturesTemp = t[i]['trackFeatures']
+            del t[i]['trackFeatures']
+            t[i] = {**tFeaturesTemp, **t[i]}
+            collectedTrackURIs.append(t[i]['track_uri'])
+            del t[i]['track_uri']
+
+        negativePlaylistVectors = db.tracks.aggregate([{'$match': {'track_uri': { '$nin': collectedTrackURIs } } }, {'$project': { '_id': 0, 'album_uri': 0, 'artist_uri': 0 }}, {'$limit': limNr//2}, 
+        {'$lookup':
+            {
+            'from': 'tracksFeatureCache',
+            'localField': 'track_uri',
+            'foreignField': 'uri',
+            'as': 'trackFeatures'
+        }},
+        {'$unwind': '$trackFeatures'},
+        {'$project': {'trackFeatures._id': 0, 'trackFeatures.type': 0, 'trackFeatures.id': 0, 'trackFeatures.uri': 0, 'trackFeatures.track_href': 0, 'trackFeatures.analysis_url': 0, 'track_uri':0 } }
+        ], allowDiskUse=True)
+        
+        negT = [v for v in negativePlaylistVectors]
+        collectedPIDs = []
+
+        for i in range(len(negT)):
+            tFeaturesTemp = negT[i]['trackFeatures']
+            del negT[i]['trackFeatures']
+            negT[i] = {**tFeaturesTemp, **negT[i]}
+            collectedPIDs.append(negT[i]['playlist_pid'])
+
+        newPlaylistVectors = db.tracks.aggregate([{'$match': { 'playlist_pid': { '$nin': collectedPIDs } } },
+        {'$project': { 'playlist_collaborative':1, 'playlist_description':1, 'playlist_duration_ms':1, 'playlist_modified_at':1, 'playlist_name':1, 'playlist_num_albums':1, 'playlist_num_artists':1, 'playlist_num_edits':1, 'playlist_num_followers':1, 'playlist_num_tracks':1  }}, 
+        {'$limit': limNr//2}], allowDiskUse=True)
+
+        for nT, c in zip(negT, newPlaylistVectors):
+            nT['playlist_collaborative'] = c['playlist_collaborative']
+            nT['playlist_description'] = c['playlist_description'] 
+            nT['playlist_duration_ms'] = c['playlist_duration_ms'] 
+            nT['playlist_modified_at'] = c['playlist_modified_at'] 
+            nT['playlist_name'] = c['playlist_name']
+            nT['playlist_num_albums'] = c['playlist_num_albums']
+            nT['playlist_num_artists'] = c['playlist_num_artists']
+            nT['playlist_num_edits'] = c['playlist_num_edits']
+            nT['playlist_num_followers'] = c['playlist_num_followers']
+            nT['playlist_num_tracks'] = c['playlist_num_tracks']
+
+            del nT['playlist_pid']
+
+        return t, negT
