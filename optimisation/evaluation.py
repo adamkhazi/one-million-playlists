@@ -15,7 +15,7 @@ class Evaluation:
         for t in test:
             if t in gold:
                 count += 1
-        return count/len(test)
+        return count/len(gold)
 
     def topK(self, gold, test):
         gold = set(gold)
@@ -25,8 +25,8 @@ class Evaluation:
                 count += 1
         return count/len(gold)
 
-    #def NDCG(self, gold, test, k):
-        #return ndcg_score(gold, test, k)
+    def NDCG(self, gold, test, k):
+        return ndcg_score(gold, test, k)
 
     def avgPrecisionScore(self, gold, test):
         return average_precision_score(gold, test)
@@ -39,3 +39,4 @@ class Evaluation:
 
     def f1Score(self, gold, test):
         return f1_score(gold, test)
+

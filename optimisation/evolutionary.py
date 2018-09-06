@@ -39,19 +39,20 @@ from evaluation import Evaluation
 import pdb
 
 d = Data()
-SET_SIZE = 70
+SET_SIZE = 1000
 #NR_FEATURES = trackFeatures.shape[1]
 NR_FEATURES = 13
 FEATURE_INDICES = [i for i in range(13)]
-trackFeatures, trackNames, trackURIs = d.getTrackFeaturesWNames( 500000 )
+
+#cons, epTrackURIs = d.getGoldSetAvgCons('Fun Run 150–165 BPM')
+cons, ugpTrackURIs = d.getUGSetAvgCons(2) # playlist id 0
+
+trackFeatures, trackNames, trackURIs = d.getTrackFeaturesWNames( ugpTrackURIs, 20000 )
 trackFeatures = trackFeatures[:,FEATURE_INDICES]
 
 # features have equal importance
 scaler = MinMaxScaler()
 trackFeatures = scaler.fit_transform(trackFeatures)
-
-#cons, epTrackURIs = d.getGoldSetAvgCons('Fun Run 150–165 BPM')
-cons, ugpTrackURIs = d.getUGSetAvgCons(0) # playlist id 0
 
 #pdb.set_trace()
 cons = np.reshape(cons, (-1,13))
@@ -102,7 +103,7 @@ toolbox.register("evaluate", evalTSP)
 toolbox.decorate("evaluate", tools.DeltaPenalty(feasible, 10000.0, distance))
 
 def main():
-    pop = toolbox.population(n=10000)
+    pop = toolbox.population(n=30000)
 
     hof = tools.HallOfFame(10)
     stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -110,8 +111,7 @@ def main():
     stats.register("std", numpy.std)
     stats.register("min", numpy.min)
     stats.register("max", numpy.max)
-    algorithms.eaSimple(pop, toolbox, 0.7, 0.3, 250, stats=stats, halloffame=hof)
-
+    algorithms.eaSimple(pop, toolbox, 0.7, 0.3, 150, stats=stats, halloffame=hof)
 
     return pop, stats, hof
 
@@ -122,11 +122,10 @@ if __name__ == "__main__":
     for h in hof:
         for i in h:
             print(trackNames[i])
+        bestSetURIs = [trackURIs[i] for i in h]
+        
+        eval = Evaluation()
+        print(" hof set scores ", eval.exactSetMatches(ugpTrackURIs, bestSetURIs))
         print(' === ')
-
-    bestSet = hof[0]
-    bestSetURIs = [trackURIs[i] for i in hof[0]]
-    eval = Evaluation()
-    print(eval.exactSetMatches(ugpTrackURIs, bestSetURIs))
 
     pdb.set_trace()

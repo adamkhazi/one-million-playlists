@@ -10,10 +10,9 @@ import json
 from joblib import Parallel, delayed
 from more_itertools import chunked
 import time
-from random import randint
+from random import randint, sample, choice
 from sklearn.preprocessing import MinMaxScaler
 import re
-
 
 from api import API
 import pdb
@@ -611,7 +610,7 @@ class Data(object):
     def convertFeaturesToMatrix(self, a1, b1):
 
         keyOrder = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', \
-         'instrumentalness', 'liveness', 'valence', 'tempo', 'time_signature']
+         'instrumentalness', 'liveness', 'valence', 'tempo', 'time_signature', 'popularity', 'release_date']
         
         # make cons key names consistent
         newKeys = []
@@ -622,9 +621,11 @@ class Data(object):
             del a1[0][old]
         a1[0]['time_signature'] = a1[0]['timesig']
         del a1[0]['timesig']
+        a1[0]['release_date'] = a1[0]['releaseyear']
+        del a1[0]['releaseyear']
 
-        aOrd= [[aa[k] for k in keyOrder] for aa in a1]
-        bOrd= [[bb[k] for k in keyOrder] for bb in b1]
+        aOrd= [[float(aa[k]) for k in keyOrder] for aa in a1]
+        bOrd= [[float(bb[k]) for k in keyOrder] for bb in b1]
         return aOrd, bOrd
 
     def addFeaturesToTrackFields(self):
@@ -694,6 +695,7 @@ class Data(object):
 
         pdb.set_trace()
 
+
     def getPlaylistWTrackVectors(self, limNr):
         c, db = self.getDB()
         playlistTrackVectors = db.tracks.aggregate([{'$match': {} }, {'$project': { '_id': 0, 'album_uri': 0, 'artist_uri': 0, 'playlist_pid': 0 }}, {'$limit': limNr//2}, 
@@ -757,3 +759,78 @@ class Data(object):
             del nT['playlist_pid']
 
         return t, negT
+
+    # output X pos membership tracks to P playlists and X neg membership tracks to P playlists
+    def getPlaylistWTrackVectorsRefined(self, pNR, xNR):
+        c, db = self.getDB()
+        posSamples = []
+        playlistTrackMemberTracker = {i: dict() for i in range(pNR)}
+
+        for pIdx in tqdm(range(pNR)):
+            playlists = db.tracks.aggregate([{'$match': {"playlist_pid": pIdx} }, {'$project': { '_id': 0, 'album_uri': 0, 'artist_uri': 0, 'playlist_pid': 0 }}, 
+            {'$lookup':
+                {
+                'from': 'tracksFeatureCache',
+                'localField': 'track_uri',
+                'foreignField': 'uri',
+                'as': 'trackFeatures'    
+                }
+            },
+            {'$unwind': '$trackFeatures'},
+            {'$project': {'trackFeatures._id': 0, 'trackFeatures.type': 0, 'trackFeatures.id': 0, 'trackFeatures.uri': 0, 'trackFeatures.track_href': 0, 'trackFeatures.analysis_url': 0} }
+            ], allowDiskUse=True)
+            
+            pVectors = []
+            for ppIdx, pp in enumerate(playlists):
+                if ppIdx < xNR:
+                    temp = dict(pp)
+                    featureTemp = temp['trackFeatures']
+                    del temp['trackFeatures']
+                    temp = {**featureTemp, **temp}
+                    del temp['track_uri']
+                    pVectors.append(temp)
+                playlistTrackMemberTracker[pIdx][pp['track_uri']] = True
+
+            posSamples.extend(pVectors)
+
+        allUris = db.uniqueTrackURIs.aggregate([{"$match": {}}, {"$project": {"track_uri": 1}}], allowDiskUse=True)
+        allUris = [a["track_uri"] for a in allUris]
+
+        negSamples = []
+        for pIdx in tqdm(range(pNR)):
+            playlistPart = db.tracks.aggregate([{'$match': {"playlist_pid": pIdx} }, {'$project': { '_id': 0, 'album_uri': 0, 'artist_uri': 0, 'playlist_pid': 0, 'album_name': 0, 'artist_name': 0, 'track_name': 0, 'track_uri': 0, 'duration_ms': 0,   }},
+            {"$limit": 1}
+            ], allowDiskUse=True)
+            playlistPart = [p for p in playlistPart][0]
+
+            addNItems = xNR
+            alreadyAdded = set()
+            while addNItems != 0:
+                newUri = choice(allUris)
+                if newUri not in playlistTrackMemberTracker[pIdx] and newUri not in alreadyAdded:
+                    alreadyAdded.add(newUri)
+
+                    trackFeaturePart = db.tracksFeatureCache.aggregate([{'$match': {"uri": newUri} },
+                    {'$project': {'_id': 0, 'type': 0, 'id': 0, 'uri': 0, 'track_href': 0, 'analysis_url': 0} }
+                    ], allowDiskUse=True)
+                    trackFeaturePart = [t for t in trackFeaturePart]
+                    if len(trackFeaturePart) == 0:
+                        continue
+                    else:
+                        trackFeaturePart = trackFeaturePart[0]
+
+                    trackMetaDataPart = db.tracks.aggregate([{'$match': { "track_uri": newUri } }, {"$limit": 1}, {'$project': { 'album_name': 1, 'artist_name': 1, 'track_name': 1, 'duration_ms': 1,  'pos': 1 }}], allowDiskUse=True)
+                    trackMetaDataPart = [t for t in trackMetaDataPart]
+                    if len(trackMetaDataPart) == 0:
+                        continue
+                    else:
+                        trackMetaDataPart = trackMetaDataPart[0]
+                        del trackMetaDataPart['_id']
+
+                    newNegSample = {**playlistPart, **trackFeaturePart, **trackMetaDataPart}
+                    negSamples.append(newNegSample)
+
+                    addNItems -= 1
+
+
+        return posSamples, negSamples
