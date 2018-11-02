@@ -50,6 +50,8 @@ cons = np.reshape(cons, (-1, 14))
 cons = scaler.transform(cons)
 cons = cons[0]
 
+trackFeatures, trackNames, trackURIs = d.sortTrackFeaturesUsingCons(trackFeatures, trackNames, trackURIs, cons)
+
 #ideal = [0.458, 0.591, 5, -5.621, 1, 0.0326, 0.568, 0.0, 0.286, 0.654, 50.558, 161187, 3]
 ideal = [cons[i] for i in FEATURE_INDICES]
 
@@ -57,13 +59,12 @@ def UnweightedSum(ideal, trackFeatures):
     trackDiffs = []
     for track in tqdm(trackFeatures):
         trackDiffSum = 0
-        for cIdx, cIdeal in enumerate(cons):
+        for cIdx, cIdeal in enumerate(ideal):
             trackDiffSum += (cIdeal - track[cIdx])**2
         trackDiffs.append(trackDiffSum/len(cons))
     return trackDiffs
 
 def WeightedSum(ideal, trackFeatures, weights):
-
     '''
     keyOrder = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 'acousticness', \
          'instrumentalness', 'liveness', 'valence', 'tempo', 'time_signature', 'popularity', 'release_date']
@@ -72,7 +73,7 @@ def WeightedSum(ideal, trackFeatures, weights):
     wSum = sum(weights)
     for track in tqdm(trackFeatures):
         trackDiffSum = 0
-        for cIdx, cIdeal in enumerate(cons):
+        for cIdx, cIdeal in enumerate(ideal):
             trackDiffSum += (weights[cIdx]/wSum) * abs(cIdeal - track[cIdx])
         trackDiffs.append(trackDiffSum/len(cons))
     return trackDiffs

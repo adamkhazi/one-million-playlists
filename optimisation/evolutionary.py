@@ -41,8 +41,8 @@ import pdb
 d = Data()
 SET_SIZE = 1000
 #NR_FEATURES = trackFeatures.shape[1]
-NR_FEATURES = 13
-FEATURE_INDICES = [i for i in range(13)]
+NR_FEATURES = 14
+FEATURE_INDICES = [i for i in range(14)]
 
 #cons, epTrackURIs = d.getGoldSetAvgCons('Fun Run 150–165 BPM')
 cons, ugpTrackURIs = d.getUGSetAvgCons(2) # playlist id 0

@@ -13,6 +13,7 @@ import time
 from random import randint, sample, choice
 from sklearn.preprocessing import MinMaxScaler
 import re
+import psycopg2
 
 from api import API
 import pdb
@@ -373,6 +374,34 @@ class Data(object):
 
         trackFeatures = np.array(trackFeatures)
         return trackFeatures, orderedTrackNames, orderedURIs
+
+    # normalise features before using this method
+    def sortTrackFeaturesUsingCons(self, trackFeatures, trackNames, trackURIs, cons):
+        def unweightedSum(ideal, trackFeatures):
+            pdb.set_trace()
+            trackDiffs = []
+            for track in tqdm(trackFeatures):
+                trackDiffSum = 0
+                for cIdx, cIdeal in enumerate(ideal):
+                    trackDiffSum += (cIdeal - track[cIdx])**2
+                trackDiffs.append(trackDiffSum/len(cons))
+            return trackDiffs
+
+        trackFeatures = trackFeatures.tolist()
+        cons = cons.tolist()
+
+        pdb.set_trace()
+
+        diffs = unweightedSum(cons, trackFeatures)
+
+        zipped = zip(diffs, trackFeatures, trackNames, trackURIs)
+        diffs, trackFeatures, trackNames, trackURIs = zip(*zipped)
+
+        return trackFeatures, trackNames, trackURIs
+
+        
+
+
     
     def getPlaylistAvgFeatures(self, limNr=0):
         c, db = self.getDB()
@@ -832,5 +861,28 @@ class Data(object):
 
                     addNItems -= 1
 
-
         return posSamples, negSamples
+
+    def get3DUserTracks(self, nrOfPlaylists):
+        c, db = self.getDB()
+        trackFeatures = db.tracksFeatureCache.aggregate([{'$match': {} }, {'$project': { '_id': 0, 'id':0, 'track_href':0, 'analysis_url':0, 'type':0, 'album_uri': 0, 'artist_uri': 0, 'playlist_pid': 0 }}], allowDiskUse=True)
+        trackFeaturesIndex = dict()
+        for t in trackFeatures:
+            trackFeaturesIndex[t['uri']] = [v for k,v in t.items() if k != 'uri']
+
+        playlists = db.tracks.aggregate([{'$group': {"_id": {"uri": '$uri', "playlist_pid": "$playlist_pid"}}}, {"$limit": nrOfPlaylists}], allowDiskUse=True)
+        u=0
+        for t in playlists:
+            print(t)
+            u += 1
+            if u > 10:
+                break
+        pdb.set_trace()
+
+    def getSQLDB(self):
+        try:
+            conn = psycopg2.connect("dbname='spotify-data' user='postgres' host='localhost' password='password'")
+        except:
+            print("I am unable to connect to the database")
+
+        return conn, conn.cursor()
